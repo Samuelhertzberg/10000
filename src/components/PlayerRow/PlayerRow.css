@@ -1,0 +1,29 @@
+.playerRow {
+    display: flex;
+}
+.displayDiv {
+    text-align: left;
+    padding: 15px;
+    font-size: 4vh;
+}
+.addPointsButton {
+    margin-left: auto;
+    height: 15vh;
+    width: 15vh;
+    font-size: 7vh;
+    border: 0;
+    color: white;
+}
+.deleteBar {
+    height: 15vh;
+    width: 0;
+    position: absolute;
+    right: 0;
+    background-color: red;
+    transition: width 0.3s;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: end;
+    font-size: 3vh;
+}

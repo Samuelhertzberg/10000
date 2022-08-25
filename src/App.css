@@ -1,0 +1,45 @@
+.App {
+  background-color: #ff0000;
+  height: 100vh;
+  color: white;
+}
+
+.color1 {
+  background-color: #F61067;
+}
+
+.color1 > button {
+  background-color: #F83A83;
+}
+
+.color2 {
+  background-color: #5E239D;
+}
+
+.color2 > button {
+  background-color: #782CC9;
+}
+
+.color3 {
+  background-color: #00F0B5;
+}
+
+.color3 > button {
+  background-color: #1FFFC7;
+}
+
+.color4 {
+  background-color: #15A25E;
+}
+
+.color4 > button {
+  background-color: #1AC773;
+}
+
+.color5 {
+  background-color: #E8E8D9;
+}
+
+.color5 > button {
+  background-color: #F4F4ED;
+}
