@@ -17,9 +17,14 @@ const App = () => {
   const [playerDialogOpen, setPlayerDialogOpen] = useState(false)
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
 
+  const firtsPlayer = players.length > 0 ? players[0].name : 'batato'
   const lastPlayer = players.length > 0 ? players[players.length - 1].name : 'batato'
+  
+  const firstColor = getPlayerColors(firtsPlayer)
+  const lastColor = getPlayerColors(lastPlayer)  
 
-  const color = getPlayerColors(lastPlayer)
+  // To make notch-,dynamic island-, punch hole- etc, displays look decent
+  document.body.style.background = firstColor
 
   const addPoints = (name: string, points: number) => {
     const newPlayers = players.map((player) => {
@@ -50,7 +55,7 @@ const App = () => {
   return (
     <Box sx={{
       minHeight: '100vh',
-      backgroundColor: color,
+      backgroundColor: lastColor,
       sx: {
         p: 0,
       }
