@@ -86,10 +86,15 @@ const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, addPoints, onRemoveP
                                 }}
                                 onClick={() => setDialogOpen(true)}
                             >
-                                <AddIcon sx={{
-                                    fontSize: '5vh',
-                                    color: theme.palette.primary.main,
-                                }} />
+                                {
+                                    totalScore < 10000 ?
+                                        <AddIcon sx={{
+                                            fontSize: '5vh',
+                                            color: theme.palette.primary.main,
+                                        }} />
+                                        :
+                                        <Icon path={mdiDice6Outline} size={'5vh'} color={'rgba(255,255,255,0.5'} spin />
+                                }
                             </IconButton>
                         </Box>
                         <Box sx={{
