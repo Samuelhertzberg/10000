@@ -5,6 +5,7 @@ import { useState } from 'react'
 import AddPlayerDialog from './AddPlayerDialog'
 import useLocalStorageState from './hooks/UseLocalStorageState'
 import { TransitionGroup } from 'react-transition-group'
+import ConfirmationDialog from './ConfirmationDialog'
 
 type player = {
   name: string
@@ -14,6 +15,7 @@ type player = {
 const App = () => {
   const [players, setPlayers] = useLocalStorageState<player[]>('players', [])
   const [playerDialogOpen, setPlayerDialogOpen] = useState(false)
+  const [resetDialogOpen, setResetDialogOpen] = useState(false)
 
   const lastPlayer = players.length > 0 ? players[players.length - 1].name : 'batato'
 
@@ -34,12 +36,19 @@ const App = () => {
     setPlayers(newPlayers)
   }
 
+  const onResetGame = () => {
+    setPlayers(players.map(p => ({ ...p, score: [] })))
+    setResetDialogOpen(false)
+  }
+
   const buttonSx = {
     width: '80%',
     borderRadius: 50,
     color: 'white',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     border: '1px solid white',
     mb: 1,
+    shadow: 0,
   }
 
   return (
@@ -69,18 +78,19 @@ const App = () => {
         <Button
           onClick={() => setPlayerDialogOpen(true)}
           size='large'
-          variant='outlined'
           sx={buttonSx}
+          variant='outlined'
         >
           Add  player
         </Button>
         <Button
-          onClick={() => setPlayers(players.map(p => ({ ...p, score: [] })))}
+          onClick={() => setResetDialogOpen(true)}
           size='small'
           variant='outlined'
           sx={{
             ...buttonSx,
             width: '60%',
+            backgroundColor: 'transparent',
           }}
         >
           Reset game
@@ -91,6 +101,12 @@ const App = () => {
         onClose={() => setPlayerDialogOpen(false)}
         onAdd={(name) => setPlayers([...players, { name, score: [] }])}
       />
+      <ConfirmationDialog
+        message='Are you sure you want to reset the game?'
+        onConfirm={onResetGame}
+        onCancel={() => setResetDialogOpen(false)}
+        open={resetDialogOpen}
+        />
     </Box >
   )
 }
