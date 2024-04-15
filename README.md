@@ -9,3 +9,11 @@ A score keeping app for the dice game  [Dice 10000](https://en.wikipedia.org/wik
 - React
 - Vite
 - Material-UI
+
+## Development
+1. Clone the repository
+2. Run Yarn install
+3. Run Yarn dev
+
+## Deployment
+Is done automatically with github actions and github pages, triggered by a push to the main branch.
