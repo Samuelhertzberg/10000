@@ -1,9 +1,10 @@
-import { Box, Button, Stack } from '@mui/material'
+import { Box, Button, Collapse, Stack } from '@mui/material'
 import PlayerRow from './PlayerRow'
 import { getPlayerColors } from './utils'
 import { useState } from 'react'
 import AddPlayerDialog from './AddPlayerDialog'
 import useLocalStorageState from './hooks/UseLocalStorageState'
+import { TransitionGroup } from 'react-transition-group'
 
 type player = {
   name: string
@@ -49,14 +50,18 @@ const App = () => {
         p: 0,
       }
     }}>
-      {players.map((player) => (
-        <PlayerRow
-          {...player}
-          addPoints={(points) => addPoints(player.name, points)}
-          onRemovePlayer={() => onRemovePlayer(player.name)}
-          key={player.name}
-        />
-      ))}
+      <TransitionGroup>
+        {players.map((player) => (
+          <Collapse key={player.name}>
+            <PlayerRow
+              {...player}
+              addPoints={(points) => addPoints(player.name, points)}
+              onRemovePlayer={() => onRemovePlayer(player.name)}
+              key={player.name}
+            />
+          </Collapse>
+        ))}
+      </TransitionGroup>
       <Stack direction="column" sx={{
         alignItems: 'center',
         pt: 4,

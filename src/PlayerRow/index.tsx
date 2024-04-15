@@ -1,4 +1,4 @@
-import { Box, IconButton, Stack, Typography } from '@mui/material';
+import { Box, IconButton, Slide, Stack, Typography } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import React, { useState } from 'react';
 import { getPlayerColors } from '../utils';
@@ -47,49 +47,54 @@ const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, addPoints, onRemoveP
 
     return (
         <>
-            <SwipeableViews index={0} onChangeIndex={handleChangeIndex} >
-                <Box sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    backgroundColor: primary,
-                    color: 'rgba(255, 255, 255, 0.87)',
-                    fontSize: '4vh',
-                    font: 'Roboto',
-                }}>
-                    <Stack direction="column" sx={{
-                        justifyContent: 'space-between',
-                        width: '100%',
-                        p: 1,
-                        px: 2,
-                        overflow: 'hidden',
-                    }}>
-                        <PlayerInfo text={name} rotatedText={totalScore} />
-                        <PlayerInfo text={totalScore} rotatedText={name} />
-                    </Stack>
-                    <IconButton
-                        aria-label="delete"
-                        size='large'
-                        sx={{
-                            color: 'white',
-                            backgroundColor: secondary,
-                            aspectRatio: 1,
-                            borderRadius: 0,
-                        }}
-                        onClick={() => setDialogOpen(true)}
-                    >
-                        <AddIcon sx={{
-                            fontSize: '5vh',
-                            color: 'white',
-                        }} />
-                    </IconButton>
-                </Box>
-                <Box sx={{
-                    width: '100%',
-                    height: '100%',
-                    backgroundColor: 'red'
-                }} />
 
-            </SwipeableViews>
+            <Slide direction="right" in={true} mountOnEnter>
+                <Box>
+                    <SwipeableViews index={0} onChangeIndex={handleChangeIndex} >
+                        <Box sx={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            backgroundColor: primary,
+                            color: 'rgba(255, 255, 255, 0.87)',
+                            fontSize: '4vh',
+                            font: 'Roboto',
+                        }}>
+                            <Stack direction="column" sx={{
+                                justifyContent: 'space-between',
+                                width: '100%',
+                                p: 1,
+                                px: 2,
+                                overflow: 'hidden',
+                            }}>
+                                <PlayerInfo text={name} rotatedText={totalScore} />
+                                <PlayerInfo text={totalScore} rotatedText={name} />
+                            </Stack>
+                            <IconButton
+                                aria-label="delete"
+                                size='large'
+                                sx={{
+                                    color: 'white',
+                                    backgroundColor: secondary,
+                                    aspectRatio: 1,
+                                    borderRadius: 0,
+                                }}
+                                onClick={() => setDialogOpen(true)}
+                            >
+                                <AddIcon sx={{
+                                    fontSize: '5vh',
+                                    color: 'white',
+                                }} />
+                            </IconButton>
+                        </Box>
+                        <Box sx={{
+                            width: '100%',
+                            height: '100%',
+                            backgroundColor: 'red'
+                        }} />
+
+                    </SwipeableViews>
+                </Box>
+            </Slide>
             <AddPointsDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onAdd={handleAddPoints} playerPoints={score} />
         </>
     );
