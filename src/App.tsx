@@ -3,6 +3,7 @@ import PlayerRow from './PlayerRow'
 import { getPlayerColors } from './utils'
 import { useState } from 'react'
 import AddPlayerDialog from './AddPlayerDialog'
+import useLocalStorageState from './hooks/UseLocalStorageState'
 
 type player = {
   name: string
@@ -10,7 +11,7 @@ type player = {
 }
 
 const App = () => {
-  const [players, setPlayers] = useState<player[]>([])
+  const [players, setPlayers] = useLocalStorageState<player[]>('players', [])
   const [playerDialogOpen, setPlayerDialogOpen] = useState(false)
 
   const lastPlayer = players.length > 0 ? players[players.length - 1].name : 'batato'
