@@ -60,6 +60,13 @@ const AddPointsDialog: React.FC<Props> = ({
     const handleSubtract = () => handleSubmit(true)
     const handleAdd = () => handleSubmit(false)
 
+    const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const parsed = parseInt(e.target.value)
+        if (!isNaN(parsed)) {
+            setPoints(parsed)
+        }
+    }
+
     return (
         <>
 
@@ -80,9 +87,8 @@ const AddPointsDialog: React.FC<Props> = ({
                     <Input
                         type='tel'
                         ref={inputRef}
-                        value={points}
                         error={error !== ''}
-                        onChange={(e) => setPoints(parseInt(e.target.value))}
+                        onChange={onChange}
                         autoFocus
                         onFocus={(e) => e.target.select()}
                         sx={{
