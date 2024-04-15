@@ -1,4 +1,4 @@
-import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Slide, TextField } from '@mui/material';
+import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Slide, Snackbar, TextField } from '@mui/material';
 import { TransitionProps } from '@mui/material/transitions';
 import React from 'react';
 
@@ -24,37 +24,49 @@ const AddPlayerDialog: React.FC<Props> = ({
 
 }) => {
     const [name, setName] = React.useState('' as string)
+    const [error, setError] = React.useState('')
+
+    const handleAdd = () => {
+        if (name.length <= 0) {
+            setError('Please enter a name')
+        } else {
+            onAdd(name)
+            setName('')
+            onClose()
+        }
+    }
+
     return (
-        <Dialog open={open} onClose={onClose} TransitionComponent={Transition} disableRestoreFocus
-        >
-            <DialogTitle>
-                Enter a name
-            </DialogTitle>
-            <DialogContent sx={{
-                py: 1
-            }}>
-                <TextField
-                    label="Player name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    autoFocus
-                    size="small"
-                    sx={{
-                        mt: 1
-                    }}
-                />
-            </DialogContent>
-            <DialogActions>
-                <Button onClick={onClose}>Cancel</Button>
-                <Button onClick={() => {
-                    onAdd(name)
-                    setName('')
-                    onClose()
-                }}>
-                    Add
-                </Button>
-            </DialogActions>
-        </Dialog>
+        <>
+            <Snackbar open={!!error} autoHideDuration={6000} onClose={() => setError('')} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+                <Alert severity="error" onClose={() => setError('')}>
+                    {error}
+                </Alert>
+            </Snackbar>
+            <Dialog open={open} onClose={onClose} TransitionComponent={Transition} disableRestoreFocus fullWidth>
+                <DialogTitle>
+                    Enter a name
+                </DialogTitle>
+                <DialogContent>
+                    <TextField
+                        label="Player name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        error={!!error}
+                        autoFocus
+                        size="small"
+                        variant='standard'
+                        fullWidth
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={onClose}>Cancel</Button>
+                    <Button onClick={handleAdd}>
+                        Add
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        </>
     )
 };
 

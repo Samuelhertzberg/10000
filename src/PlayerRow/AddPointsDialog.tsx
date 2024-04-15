@@ -69,7 +69,7 @@ const AddPointsDialog: React.FC<Props> = ({
                     {error}
                 </Alert>
             </Snackbar>
-            <Dialog open={open} onClose={onCancel} TransitionComponent={Transition} disableRestoreFocus >
+            <Dialog open={open} onClose={onCancel} TransitionComponent={Transition} disableRestoreFocus fullWidth>
                 <DialogTitle>
                     Add points
                 </DialogTitle>
@@ -87,6 +87,7 @@ const AddPointsDialog: React.FC<Props> = ({
                         sx={{
                             mt: 1
                         }}
+                        fullWidth
                     />
                 </DialogContent>
                 <DialogActions>
