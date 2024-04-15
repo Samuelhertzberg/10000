@@ -19,9 +19,9 @@ const App = () => {
 
   const firtsPlayer = players.length > 0 ? players[0].name : 'batato'
   const lastPlayer = players.length > 0 ? players[players.length - 1].name : 'batato'
-  
+
   const firstColor = getPlayerColors(firtsPlayer)
-  const lastColor = getPlayerColors(lastPlayer)  
+  const lastColor = getPlayerColors(lastPlayer)
 
   // To make notch-,dynamic island-, punch hole- etc, displays look decent
   document.body.style.background = firstColor
@@ -34,6 +34,12 @@ const App = () => {
       return player
     })
     setPlayers(newPlayers)
+    window.scrollTo(0, 0)
+  }
+
+  const onAddPlayer = (name: string) => {
+    setPlayers([...players, { name, score: [] }])
+    window.scrollTo(0, 0)
   }
 
   const onRemovePlayer = (name: string) => {
@@ -99,14 +105,14 @@ const App = () => {
       <AddPlayerDialog
         open={playerDialogOpen}
         onClose={() => setPlayerDialogOpen(false)}
-        onAdd={(name) => setPlayers([...players, { name, score: [] }])}
+        onAdd={onAddPlayer}
       />
       <ConfirmationDialog
         message='Are you sure you want to reset the game?'
         onConfirm={onResetGame}
         onCancel={() => setResetDialogOpen(false)}
         open={resetDialogOpen}
-        />
+      />
     </Box >
   )
 }

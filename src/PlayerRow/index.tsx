@@ -100,10 +100,10 @@ const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, addPoints, onRemoveP
                             justifyContent: 'center',
                             alignItems: 'center',
                         }}>
-                            <Icon path={mdiSkullOutline} size={4} color={'rgba(255,255,255,0.5'} />
-                            <Icon path={mdiDice6Outline} size={4} color={'rgba(255,255,255,0.5'} />
-                            <Icon path={mdiSkullOutline} size={4} color={'rgba(255,255,255,0.5'} />
-                            <Icon path={mdiDice6Outline} size={4} color={'rgba(255,255,255,0.5'} />
+                            <Icon path={mdiSkullOutline} size={3} color={'rgba(255,255,255,0.5'} />
+                            <Icon path={mdiDice6Outline} size={3} color={'rgba(255,255,255,0.5'} />
+                            <Icon path={mdiSkullOutline} size={3} color={'rgba(255,255,255,0.5'} />
+                            <Icon path={mdiDice6Outline} size={3} color={'rgba(255,255,255,0.5'} />
                         </Box>
 
                     </SwipeableViews>
