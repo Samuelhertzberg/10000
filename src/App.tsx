@@ -19,7 +19,7 @@ const App = () => {
 
   const lastPlayer = players.length > 0 ? players[players.length - 1].name : 'batato'
 
-  const { primary } = getPlayerColors(lastPlayer)
+  const color = getPlayerColors(lastPlayer)
 
   const addPoints = (name: string, points: number) => {
     const newPlayers = players.map((player) => {
@@ -44,17 +44,13 @@ const App = () => {
   const buttonSx = {
     width: '80%',
     borderRadius: 50,
-    color: 'white',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    border: '1px solid white',
     mb: 1,
-    shadow: 0,
   }
 
   return (
     <Box sx={{
       minHeight: '100vh',
-      backgroundColor: primary,
+      backgroundColor: color,
       sx: {
         p: 0,
       }
@@ -89,8 +85,7 @@ const App = () => {
           variant='outlined'
           sx={{
             ...buttonSx,
-            width: '60%',
-            backgroundColor: 'transparent',
+            width: '60%'
           }}
         >
           Reset game

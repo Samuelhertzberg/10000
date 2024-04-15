@@ -1,6 +1,7 @@
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Slide, Snackbar, TextField } from '@mui/material';
+import { Alert, Dialog, DialogActions, DialogContent, DialogTitle, Slide, Snackbar, TextField } from '@mui/material';
 import { TransitionProps } from '@mui/material/transitions';
 import React from 'react';
+import DialogButton from './Components/DialogButton';
 
 const Transition = React.forwardRef(function Transition(
     props: TransitionProps & {
@@ -57,13 +58,14 @@ const AddPlayerDialog: React.FC<Props> = ({
                         size="small"
                         variant='standard'
                         fullWidth
+                        color='secondary'
                     />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={onClose}>Cancel</Button>
-                    <Button onClick={handleAdd}>
+                    <DialogButton onClick={onClose}>Cancel</DialogButton>
+                    <DialogButton onClick={handleAdd} positive>
                         Add
-                    </Button>
+                    </DialogButton>
                 </DialogActions>
             </Dialog>
         </>

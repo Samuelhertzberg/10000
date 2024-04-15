@@ -1,6 +1,7 @@
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Slide, Alert, Snackbar, Input } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Slide, Alert, Snackbar, Input } from '@mui/material';
 import { TransitionProps } from '@mui/material/transitions';
 import React, { useState } from 'react';
+import DialogButton from '../Components/DialogButton';
 
 const Transition = React.forwardRef(function Transition(
     props: TransitionProps & {
@@ -85,23 +86,24 @@ const AddPointsDialog: React.FC<Props> = ({
                         autoFocus
                         onFocus={(e) => e.target.select()}
                         sx={{
-                            mt: 1
+                            mt: 1,
                         }}
                         fullWidth
+                        color='secondary'
                     />
                 </DialogContent>
                 <DialogActions>
-                    <Button size="small" onClick={onCancel} sx={{
-                        mr: 1
+                    <DialogButton onClick={onCancel} sx={{
+                        mr: 1,
                     }}>
                         Cancel
-                    </Button>
-                    <Button size="small" onClick={handleSubtract}>
+                    </DialogButton>
+                    <DialogButton onClick={handleSubtract}>
                         Subtract
-                    </Button>
-                    <Button size="small" onClick={handleAdd}>
+                    </DialogButton>
+                    <DialogButton onClick={handleAdd} positive={true}>
                         Add
-                    </Button>
+                    </DialogButton>
                 </DialogActions>
             </Dialog>
         </>

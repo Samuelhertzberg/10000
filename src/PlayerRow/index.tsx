@@ -1,9 +1,13 @@
-import { Box, IconButton, Slide, Stack, Typography } from '@mui/material';
+import { Box, IconButton, Slide, Stack, Typography, useTheme } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import React, { useState } from 'react';
 import { getPlayerColors } from '../utils';
 import AddPointsDialog from './AddPointsDialog';
 import SwipeableViews from 'react-swipeable-views';
+import Color from 'color';
+import { mdiDice6Outline, mdiSkullOutline } from '@mdi/js';
+import Icon from '@mdi/react';
+
 
 interface PlayerRowProps {
     name: string;
@@ -14,12 +18,15 @@ interface PlayerRowProps {
 
 const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, addPoints, onRemovePlayer }) => {
     const [dialogOpen, setDialogOpen] = useState(false)
-    const { primary, secondary } = getPlayerColors(name)
+    const color = getPlayerColors(name)
+    const lightColor = Color(color).lighten(0.1).hex()
     const totalScore = score.reduce((a, b) => a + b, 0)
     const handleAddPoints = (points: number) => {
         addPoints(points)
         setDialogOpen(false)
     }
+
+    const theme = useTheme()
 
     const handleChangeIndex = (index: number) => {
         if (index !== 0) {
@@ -35,12 +42,14 @@ const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, addPoints, onRemoveP
         }}>
             <Typography sx={{
                 fontSize: '4vh',
+                color: theme.palette.primary.main,
             }}>{text}</Typography>
             <Typography sx={{
                 transform: 'rotate(180deg)',
                 fontSize: '4vh',
                 ml: 1,
                 opacity: 0.5,
+                color: theme.palette.primary.main,
             }}>{rotatedText}</Typography>
         </Stack>
     )
@@ -54,8 +63,7 @@ const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, addPoints, onRemoveP
                         <Box sx={{
                             display: 'flex',
                             justifyContent: 'space-between',
-                            backgroundColor: primary,
-                            color: 'rgba(255, 255, 255, 0.87)',
+                            backgroundColor: color,
                             fontSize: '4vh',
                             font: 'Roboto',
                         }}>
@@ -70,11 +78,9 @@ const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, addPoints, onRemoveP
                                 <PlayerInfo text={totalScore} rotatedText={name} />
                             </Stack>
                             <IconButton
-                                aria-label="delete"
                                 size='large'
                                 sx={{
-                                    color: 'white',
-                                    backgroundColor: secondary,
+                                    backgroundColor: lightColor,
                                     aspectRatio: 1,
                                     borderRadius: 0,
                                 }}
@@ -82,15 +88,23 @@ const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, addPoints, onRemoveP
                             >
                                 <AddIcon sx={{
                                     fontSize: '5vh',
-                                    color: 'white',
+                                    color: theme.palette.primary.main,
                                 }} />
                             </IconButton>
                         </Box>
                         <Box sx={{
                             width: '100%',
                             height: '100%',
-                            backgroundColor: 'red'
-                        }} />
+                            backgroundColor: theme.palette.error.main,
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                        }}>
+                            <Icon path={mdiSkullOutline} size={4} color={'rgba(255,255,255,0.5'} />
+                            <Icon path={mdiDice6Outline} size={4} color={'rgba(255,255,255,0.5'} />
+                            <Icon path={mdiSkullOutline} size={4} color={'rgba(255,255,255,0.5'} />
+                            <Icon path={mdiDice6Outline} size={4} color={'rgba(255,255,255,0.5'} />
+                        </Box>
 
                     </SwipeableViews>
                 </Box>

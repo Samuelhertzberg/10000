@@ -1,5 +1,6 @@
 import React from 'react';
-import { Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from '@mui/material';
+import { Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from '@mui/material';
+import DialogButton from './Components/DialogButton';
 
 interface ConfirmationDialogProps {
     open: boolean;
@@ -21,8 +22,8 @@ const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
                 <DialogContentText>{message}</DialogContentText>
             </DialogContent>}
             <DialogActions>
-                <Button onClick={onCancel}>Nope</Button>
-                <Button onClick={onConfirm}>Yep</Button>
+                <DialogButton onClick={onCancel} positive>Nope</DialogButton>
+                <DialogButton onClick={onConfirm}>Yep</DialogButton>
             </DialogActions>
         </Dialog>
     );
