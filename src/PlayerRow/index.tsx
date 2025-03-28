@@ -12,11 +12,13 @@ import Icon from '@mdi/react';
 interface PlayerRowProps {
     name: string;
     score: number[];
+    allowAnyPoints: boolean;
+    maxPoints: number;
     addPoints: (points: number) => void;
     onRemovePlayer: () => void;
 }
 
-const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, addPoints, onRemovePlayer }) => {
+const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, allowAnyPoints, maxPoints, addPoints, onRemovePlayer }) => {
     const [dialogOpen, setDialogOpen] = useState(false)
     const color = getPlayerColors(name)
     const lightColor = Color(color).lighten(0.1).hex()
@@ -87,7 +89,7 @@ const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, addPoints, onRemoveP
                                 onClick={() => setDialogOpen(true)}
                             >
                                 {
-                                    totalScore < 10000 ?
+                                    totalScore < maxPoints ?
                                         <AddIcon sx={{
                                             fontSize: '5vh',
                                             color: theme.palette.primary.main,
@@ -114,7 +116,7 @@ const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, addPoints, onRemoveP
                     </SwipeableViews>
                 </Box>
             </Slide>
-            <AddPointsDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onAdd={handleAddPoints} playerPoints={score} />
+            <AddPointsDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onAdd={handleAddPoints} playerPoints={score} allowAnyPoints={allowAnyPoints} />
         </>
     );
 };

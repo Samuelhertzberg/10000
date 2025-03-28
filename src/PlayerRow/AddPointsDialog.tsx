@@ -18,6 +18,7 @@ type Props = {
     open: boolean;
     playerPoints: number[];
     onAdd: (points: number) => void;
+    allowAnyPoints: boolean;
 }
 
 const AddPointsDialog: React.FC<Props> = ({
@@ -25,6 +26,7 @@ const AddPointsDialog: React.FC<Props> = ({
     open,
     playerPoints,
     onAdd,
+    allowAnyPoints
 }) => {
     const inputRef = React.useRef<HTMLInputElement>(null)
     const [points, setPoints] = useState<number>(0)
@@ -38,13 +40,13 @@ const AddPointsDialog: React.FC<Props> = ({
 
 
     const handleSubmit = (subtract = false) => {
-        if (points === undefined) {
+        if (points === undefined && !allowAnyPoints) {
             setError('Please enter a number')
-        } else if (points <= 0) {
+        } else if (points <= 0 && !allowAnyPoints) {
             setError('Points must be a positive number')
-        } else if (points % 50 !== 0) {
+        } else if (points % 50 !== 0 && !allowAnyPoints) {
             setError('Points must be a multiple of 50, have you read the rules?')
-        } else if (points > playerScore && subtract) {
+        } else if (points > playerScore && subtract && !allowAnyPoints) {
             setError('You can\'t subtract more points than the player has')
         } else {
             if (subtract) {

@@ -1,4 +1,4 @@
-import { Box, Button, Collapse, Stack } from '@mui/material'
+import { Backdrop, Box, Button, Checkbox, Collapse, IconButton, Input, Menu, Stack, Typography } from '@mui/material'
 import PlayerRow from './PlayerRow'
 import { getPlayerColors } from './utils'
 import { useState } from 'react'
@@ -6,6 +6,7 @@ import AddPlayerDialog from './AddPlayerDialog'
 import useLocalStorageState from './hooks/UseLocalStorageState'
 import { TransitionGroup } from 'react-transition-group'
 import ConfirmationDialog from './ConfirmationDialog'
+import SettingsIcon from '@mui/icons-material/Settings';
 
 type player = {
   name: string
@@ -16,6 +17,11 @@ const App = () => {
   const [players, setPlayers] = useLocalStorageState<player[]>('players', [])
   const [playerDialogOpen, setPlayerDialogOpen] = useState(false)
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
+
+  const [allowAnyPoints, setAllowAnyPoints] = useLocalStorageState<boolean>('allowAnyPoints', false)
+  const [maxPoints, setMaxPoints] = useLocalStorageState<number>('maxPoints', 10000)
+  
+  const [settingsAnchorEl, setSettingsAnchorEl] = useState<null | HTMLElement>(null)
 
   const firtsPlayer = players.length > 0 ? players[0].name : 'batato'
   const lastPlayer = players.length > 0 ? players[players.length - 1].name : 'batato'
@@ -73,6 +79,8 @@ const App = () => {
               {...player}
               addPoints={(points) => addPoints(player.name, points)}
               onRemovePlayer={() => onRemovePlayer(player.name)}
+              allowAnyPoints={allowAnyPoints}
+              maxPoints={maxPoints}
               key={player.name}
             />
           </Collapse>
@@ -113,6 +121,75 @@ const App = () => {
         onCancel={() => setResetDialogOpen(false)}
         open={resetDialogOpen}
       />
+      <IconButton
+        sx={{
+          position: 'fixed',
+          bottom: 16,
+          right: 16,
+        }}
+        onClick={(e) =>
+          setSettingsAnchorEl(e.currentTarget)}
+      >
+        <SettingsIcon color='primary' />
+      </IconButton>
+      <Backdrop
+        open={Boolean(settingsAnchorEl)}
+        sx={{
+          zIndex: 1000,
+        }}
+      />
+
+      <Menu
+        open={Boolean(settingsAnchorEl)}
+        anchorEl={settingsAnchorEl}
+        onClose={() => setSettingsAnchorEl(null)}
+        anchorOrigin={{
+          vertical: 'top',
+          horizontal: 'left',
+        }}
+        transformOrigin={{
+          vertical: 'bottom',
+          horizontal: 'left',
+        }}
+      >
+        <Stack
+          direction='row'
+          alignItems='center'
+          justifyContent='space-between'
+          sx={{
+            p: 2,
+            width: 200,
+          }}
+        >
+          <Typography>Allow any points</Typography>
+          <Checkbox
+            checked={allowAnyPoints}
+            onChange={() => setAllowAnyPoints(!allowAnyPoints)}
+            color='default'
+          />
+
+        </Stack>
+        <Stack
+          direction='row'
+          alignItems='center'
+          justifyContent='space-between'
+          sx={{
+            p: 2,
+            width: 200,
+          }}
+        >
+          <Typography>Max Points:</Typography>
+          <Input
+            type='number'
+            value={maxPoints}
+            onChange={(e) => setMaxPoints(parseInt(e.target.value))}
+            sx={{
+              width: 100,
+            }}
+          />
+
+        </Stack>
+      </Menu>
     </Box >
   )
 }
