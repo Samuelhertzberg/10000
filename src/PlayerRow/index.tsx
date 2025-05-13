@@ -1,4 +1,4 @@
-import { Box, IconButton, Slide, Stack, Typography, useTheme } from '@mui/material';
+import { Box, IconButton, Slide, Stack, Typography, useTheme, Collapse } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import React, { useState } from 'react';
 import { getPlayerColors } from '../utils';
@@ -20,6 +20,7 @@ interface PlayerRowProps {
 
 const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, allowAnyPoints, maxPoints, addPoints, onRemovePlayer }) => {
     const [dialogOpen, setDialogOpen] = useState(false)
+    const [pointsExpanded, setPointsExpanded] = useState(false)
     const color = getPlayerColors(name)
     const lightColor = Color(color).lighten(0.1).hex()
     const totalScore = score.reduce((a, b) => a + b, 0)
@@ -43,16 +44,38 @@ const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, allowAnyPoints, maxP
             alignItems: 'center',
         }}>
             <Typography sx={{
-                fontSize: '4vh',
-                color: theme.palette.primary.main,
+                fontSize: 'inherit',
             }}>{text}</Typography>
             <Typography sx={{
                 transform: 'rotate(180deg)',
-                fontSize: '4vh',
-                ml: 1,
+                fontSize: 'inherit',
                 opacity: 0.5,
                 color: theme.palette.primary.main,
             }}>{rotatedText}</Typography>
+        </Stack>
+    )
+
+    const ScoreRow = ({ points, index }: { points: number, index: number }) => (
+        <Stack direction="row" alignItems="end" justifyContent="end" width="100%">
+            <Stack direction="row" sx={{
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                width: '100%',
+                borderBottom: index === 0 ? `1px solid ${theme.palette.primary.main}` : 'none',
+                borderTop: index === score.length - 1 ? `1px solid ${theme.palette.primary.main}` : 'none',
+            }}>
+                <Box sx={{ fontSize: '2vh' }} >
+                    {index === 0 && "Last Round: "}
+                    {index === score.length - 1 && "First Round: "}
+                </Box>
+                <Typography sx={{
+                    fontSize: 'inherit',
+                    color: theme.palette.primary.main,
+                }}>
+                    {Math.sign(points) >= 0 ? '+' : '-'}{' '}
+                    {Math.abs(points)}
+                </Typography>
+            </Stack>
         </Stack>
     )
 
@@ -68,16 +91,39 @@ const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, allowAnyPoints, maxP
                             backgroundColor: color,
                             fontSize: '4vh',
                             font: 'Roboto',
-                        }}>
+                            color: theme.palette.primary.main,
+                        }}
+                        >
                             <Stack direction="column" sx={{
                                 justifyContent: 'space-between',
                                 width: '100%',
                                 p: 1,
                                 px: 2,
                                 overflow: 'hidden',
-                            }}>
+                            }}
+                                onClick={() => setPointsExpanded(!pointsExpanded)}
+
+                            >
                                 <PlayerInfo text={name} rotatedText={totalScore} />
                                 <PlayerInfo text={totalScore} rotatedText={name} />
+
+                                {
+                                    <Collapse in={pointsExpanded} timeout="auto" unmountOnExit>
+                                        <Stack direction="column" sx={{
+                                            justifyContent: 'end',
+                                            alignItems: 'end',
+                                            width: '100%',
+                                            mt: 1,
+                                            fontSize: '3vh',
+                                            opacity: 0.5,
+                                        }}>
+                                            {
+                                                [...score].reverse().map((points, index) => <ScoreRow key={index} points={points} index={index} />)
+                                            }
+                                        </Stack>
+                                    </Collapse>
+
+                                }
                             </Stack>
                             <IconButton
                                 size='large'
