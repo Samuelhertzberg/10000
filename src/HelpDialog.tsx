@@ -131,7 +131,7 @@ const HelpDialog: React.FC<Props> = ({ open, onClose }) => {
                     Important Rules
                 </Typography>
                 <Typography component="div" paragraph>
-                    If you have no points, you must score at least 10000 points to get on the board.<br />
+                    If you have no points, you must score at least 1000 points to get on the board.<br />
                 </Typography>
                 <Typography component="div" paragraph>
                     When one player reaches 10,000 points, all other players get one final turn to try and beat that score.
