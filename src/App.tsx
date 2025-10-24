@@ -8,11 +8,46 @@ import { TransitionGroup } from 'react-transition-group'
 import ConfirmationDialog from './ConfirmationDialog'
 import HelpDialog from './HelpDialog'
 import SettingsIcon from '@mui/icons-material/Settings'
-import HelpIcon from '@mui/icons-material/Help';
+import HelpIcon from '@mui/icons-material/Help'
+import { BadgeType } from './Components/Badge';
 
 type player = {
   name: string
   score: number[]
+}
+
+const calculateBadges = (players: player[], playerName: string): BadgeType[] => {
+  const badges: BadgeType[] = []
+
+  // Only calculate badges if there are players with scores
+  const playersWithScores = players.filter(p => p.score.length > 0)
+  if (playersWithScores.length === 0) return badges
+
+  const currentPlayer = players.find(p => p.name === playerName)
+  if (!currentPlayer || currentPlayer.score.length === 0) return badges
+
+  const currentTotal = currentPlayer.score.reduce((a, b) => a + b, 0)
+  const currentRounds = currentPlayer.score.length
+
+  // Calculate highest score
+  const maxScore = Math.max(...playersWithScores.map(p => p.score.reduce((a, b) => a + b, 0)))
+  if (currentTotal === maxScore) {
+    badges.push('highest')
+  }
+
+  // Calculate lowest score (only among players with scores)
+  const minScore = Math.min(...playersWithScores.map(p => p.score.reduce((a, b) => a + b, 0)))
+  if (currentTotal === minScore && playersWithScores.length > 1) {
+    badges.push('lowest')
+  }
+
+  // Calculate most rounds
+  const maxRounds = Math.max(...playersWithScores.map(p => p.score.length))
+  if (currentRounds === maxRounds) {
+    badges.push('mostRounds')
+  }
+
+  return badges
 }
 
 const App = () => {
@@ -84,6 +119,7 @@ const App = () => {
               onRemovePlayer={() => onRemovePlayer(player.name)}
               allowAnyPoints={allowAnyPoints}
               maxPoints={maxPoints}
+              badges={calculateBadges(players, player.name)}
               key={player.name}
             />
           </Collapse>

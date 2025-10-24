@@ -7,6 +7,7 @@ import SwipeableViews from 'react-swipeable-views';
 import Color from 'color';
 import { mdiDice6Outline, mdiSkullOutline } from '@mdi/js';
 import Icon from '@mdi/react';
+import { Badge, BadgeLegend, BadgeType } from '../Components/Badge';
 
 
 interface PlayerRowProps {
@@ -14,11 +15,12 @@ interface PlayerRowProps {
     score: number[];
     allowAnyPoints: boolean;
     maxPoints: number;
+    badges: BadgeType[];
     addPoints: (points: number) => void;
     onRemovePlayer: () => void;
 }
 
-const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, allowAnyPoints, maxPoints, addPoints, onRemovePlayer }) => {
+const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, allowAnyPoints, maxPoints, badges, addPoints, onRemovePlayer }) => {
     const [dialogOpen, setDialogOpen] = useState(false)
     const [pointsExpanded, setPointsExpanded] = useState(false)
     const color = getPlayerColors(name)
@@ -37,21 +39,28 @@ const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, allowAnyPoints, maxP
         }
     }
 
-    const PlayerInfo = ({ text, rotatedText }: { text: string | number, rotatedText: string | number }) => (
+    const PlayerInfo = ({ text, rotatedText, showBadges, showRotatedBadges }: { text: string | number, rotatedText: string | number, showBadges?: boolean, showRotatedBadges?: boolean }) => (
         <Stack direction="row" sx={{
             width: '100%',
             justifyContent: 'space-between',
             alignItems: 'center',
         }}>
-            <Typography sx={{
-                fontSize: 'inherit',
-            }}>{text}</Typography>
-            <Typography sx={{
-                transform: 'rotate(180deg)',
-                fontSize: 'inherit',
-                opacity: 0.5,
-                color: theme.palette.primary.main,
-            }}>{rotatedText}</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Typography sx={{
+                    fontSize: 'inherit',
+                }}>{text}</Typography>
+                {showBadges && badges.map((badge) => (
+                    <Badge key={badge} type={badge} size={0.7} color={theme.palette.primary.main} opacity={0.5} />
+                ))}
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, transform: 'rotate(180deg)', opacity: 0.5, color: theme.palette.primary.main }}>
+                <Typography sx={{
+                    fontSize: 'inherit',
+                }}>{rotatedText}</Typography>
+                {showRotatedBadges && badges.map((badge) => (
+                    <Badge key={badge} type={badge} size={0.7} color={theme.palette.primary.main} opacity={0.5} />
+                ))}
+            </Box>
         </Stack>
     )
 
@@ -104,8 +113,8 @@ const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, allowAnyPoints, maxP
                                 onClick={() => setPointsExpanded(!pointsExpanded)}
 
                             >
-                                <PlayerInfo text={name} rotatedText={totalScore} />
-                                <PlayerInfo text={totalScore} rotatedText={name} />
+                                <PlayerInfo text={name} rotatedText={totalScore} showBadges={true} showRotatedBadges={false} />
+                                <PlayerInfo text={totalScore} rotatedText={name} showBadges={false} showRotatedBadges={true} />
 
                                 {
                                     <Collapse in={pointsExpanded} timeout="auto" unmountOnExit>
@@ -120,6 +129,16 @@ const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, allowAnyPoints, maxP
                                             {
                                                 [...score].reverse().map((points, index) => <ScoreRow key={index} points={points} index={index} />)
                                             }
+                                            {badges.length > 0 && (
+                                                <Box sx={{
+                                                    width: '100%',
+                                                    mt: 2,
+                                                    fontSize: '2vh',
+                                                    color: theme.palette.primary.main,
+                                                }}>
+                                                    <BadgeLegend badges={badges} color={theme.palette.primary.main} />
+                                                </Box>
+                                            )}
                                         </Stack>
                                     </Collapse>
 
