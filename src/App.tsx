@@ -6,7 +6,9 @@ import AddPlayerDialog from './AddPlayerDialog'
 import useLocalStorageState from './hooks/UseLocalStorageState'
 import { TransitionGroup } from 'react-transition-group'
 import ConfirmationDialog from './ConfirmationDialog'
-import SettingsIcon from '@mui/icons-material/Settings';
+import HelpDialog from './HelpDialog'
+import SettingsIcon from '@mui/icons-material/Settings'
+import HelpIcon from '@mui/icons-material/Help';
 
 type player = {
   name: string
@@ -17,6 +19,7 @@ const App = () => {
   const [players, setPlayers] = useLocalStorageState<player[]>('players', [])
   const [playerDialogOpen, setPlayerDialogOpen] = useState(false)
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
+  const [helpDialogOpen, setHelpDialogOpen] = useState(false)
 
   const [allowAnyPoints, setAllowAnyPoints] = useLocalStorageState<boolean>('allowAnyPoints', false)
   const [maxPoints, setMaxPoints] = useLocalStorageState<number>('maxPoints', 10000)
@@ -121,17 +124,31 @@ const App = () => {
         onCancel={() => setResetDialogOpen(false)}
         open={resetDialogOpen}
       />
-      <IconButton
+      <HelpDialog
+        open={helpDialogOpen}
+        onClose={() => setHelpDialogOpen(false)}
+      />
+      <Stack
+        direction="column"
+        spacing={1}
         sx={{
           position: 'fixed',
           bottom: 16,
           right: 16,
         }}
-        onClick={(e) =>
-          setSettingsAnchorEl(e.currentTarget)}
       >
-        <SettingsIcon color='primary' />
-      </IconButton>
+        <IconButton
+          onClick={() => setHelpDialogOpen(true)}
+        >
+          <HelpIcon color='primary' />
+        </IconButton>
+        <IconButton
+          onClick={(e) =>
+            setSettingsAnchorEl(e.currentTarget)}
+        >
+          <SettingsIcon color='primary' />
+        </IconButton>
+      </Stack>
       <Backdrop
         open={Boolean(settingsAnchorEl)}
         sx={{
