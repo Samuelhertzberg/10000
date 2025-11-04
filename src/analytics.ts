@@ -29,11 +29,10 @@ const isProduction = (): boolean => {
 /**
  * Track a custom event with Plausible
  *
- * @param eventName - Name of the event (e.g., "Add Player", "Game Reset")
+ * @param eventName - Name of the event (e.g., "Game Reset")
  * @param props - Optional properties to attach to the event
  *
  * @example
- * trackEvent("Add Player", { playerName: "Alice" });
  * trackEvent("Game Reset");
  */
 export const trackEvent = (
@@ -62,10 +61,6 @@ export const trackEvent = (
  * Predefined game events for type safety
  */
 export const GameEvents = {
-  // Player management
-  ADD_PLAYER: 'Add Player',
-  REMOVE_PLAYER: 'Remove Player',
-
   // Game actions
   ADD_POINTS: 'Add Points',
   GAME_RESET: 'Game Reset',
@@ -86,31 +81,11 @@ export const GameEvents = {
 } as const;
 
 /**
- * Track player addition
- */
-export const trackAddPlayer = (playerName: string): void => {
-  trackEvent(GameEvents.ADD_PLAYER, {
-    playerName,
-  });
-};
-
-/**
- * Track player removal
- */
-export const trackRemovePlayer = (playerName: string, playerCount: number): void => {
-  trackEvent(GameEvents.REMOVE_PLAYER, {
-    playerName,
-    remainingPlayers: playerCount,
-  });
-};
-
-/**
  * Track points addition
  */
-export const trackAddPoints = (points: number, playerName: string): void => {
+export const trackAddPoints = (points: number): void => {
   trackEvent(GameEvents.ADD_POINTS, {
     points,
-    playerName,
   });
 };
 
@@ -128,13 +103,11 @@ export const trackGameReset = (playerCount: number, roundsPlayed: number): void 
  * Track game won
  */
 export const trackGameWon = (
-  winnerName: string,
   finalScore: number,
   playerCount: number,
   roundsPlayed: number
 ): void => {
   trackEvent(GameEvents.GAME_WON, {
-    winnerName,
     finalScore,
     playerCount,
     roundsPlayed,
@@ -150,7 +123,7 @@ export const trackSettingsChange = (
 ): void => {
   if (setting === 'allowAnyPoints') {
     trackEvent(GameEvents.TOGGLE_ANY_POINTS, {
-      enabled: value as boolean,
+      disabledPointRestriction: value as boolean,
     });
   } else {
     trackEvent(GameEvents.CHANGE_MAX_POINTS, {

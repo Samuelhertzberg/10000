@@ -29,7 +29,7 @@ const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, allowAnyPoints, maxP
     const totalScore = score.reduce((a, b) => a + b, 0)
     const handleAddPoints = (points: number) => {
         addPoints(points)
-        trackAddPoints(points, name)
+        trackAddPoints(points)
         setDialogOpen(false)
     }
 

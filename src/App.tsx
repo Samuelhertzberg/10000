@@ -10,7 +10,7 @@ import HelpDialog from './HelpDialog'
 import SettingsIcon from '@mui/icons-material/Settings'
 import HelpIcon from '@mui/icons-material/Help'
 import { BadgeType } from './Components/Badge';
-import { trackAddPlayer, trackRemovePlayer, trackGameReset, trackGameWon, trackSettingsChange, trackViewHelp } from './analytics'
+import { trackGameReset, trackGameWon, trackSettingsChange, trackViewHelp } from './analytics'
 
 type player = {
   name: string
@@ -86,7 +86,7 @@ const App = () => {
       const totalScore = updatedPlayer.score.reduce((a, b) => a + b, 0)
       if (totalScore >= maxPoints) {
         const roundsPlayed = Math.max(...newPlayers.map(p => p.score.length))
-        trackGameWon(name, totalScore, players.length, roundsPlayed)
+        trackGameWon(totalScore, players.length, roundsPlayed)
       }
     }
 
@@ -95,14 +95,12 @@ const App = () => {
 
   const onAddPlayer = (name: string) => {
     setPlayers([...players, { name, score: [] }])
-    trackAddPlayer(name)
     window.scrollTo(0, 0)
   }
 
   const onRemovePlayer = (name: string) => {
     const newPlayers = players.filter((player) => player.name !== name)
     setPlayers(newPlayers)
-    trackRemovePlayer(name, newPlayers.length)
   }
 
   const onResetGame = () => {
