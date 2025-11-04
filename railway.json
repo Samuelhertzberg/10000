@@ -2,7 +2,7 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "yarn build"
+    "buildCommand": "unset VITE_BASE_PATH && yarn build"
   },
   "deploy": {
     "startCommand": "npx serve dist -s -p $PORT",
