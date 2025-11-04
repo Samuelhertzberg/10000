@@ -10,6 +10,7 @@ import HelpDialog from './HelpDialog'
 import SettingsIcon from '@mui/icons-material/Settings'
 import HelpIcon from '@mui/icons-material/Help'
 import { BadgeType } from './Components/Badge';
+import { trackAddPlayer, trackRemovePlayer, trackGameReset, trackGameWon, trackSettingsChange, trackViewHelp } from './analytics'
 
 type player = {
   name: string
@@ -78,20 +79,35 @@ const App = () => {
       return player
     })
     setPlayers(newPlayers)
+
+    // Check if player won the game
+    const updatedPlayer = newPlayers.find(p => p.name === name)
+    if (updatedPlayer) {
+      const totalScore = updatedPlayer.score.reduce((a, b) => a + b, 0)
+      if (totalScore >= maxPoints) {
+        const roundsPlayed = Math.max(...newPlayers.map(p => p.score.length))
+        trackGameWon(name, totalScore, players.length, roundsPlayed)
+      }
+    }
+
     window.scrollTo(0, 0)
   }
 
   const onAddPlayer = (name: string) => {
     setPlayers([...players, { name, score: [] }])
+    trackAddPlayer(name)
     window.scrollTo(0, 0)
   }
 
   const onRemovePlayer = (name: string) => {
     const newPlayers = players.filter((player) => player.name !== name)
     setPlayers(newPlayers)
+    trackRemovePlayer(name, newPlayers.length)
   }
 
   const onResetGame = () => {
+    const roundsPlayed = Math.max(0, ...players.map(p => p.score.length))
+    trackGameReset(players.length, roundsPlayed)
     setPlayers(players.map(p => ({ ...p, score: [] })))
     setResetDialogOpen(false)
   }
@@ -174,7 +190,10 @@ const App = () => {
         }}
       >
         <IconButton
-          onClick={() => setHelpDialogOpen(true)}
+          onClick={() => {
+            setHelpDialogOpen(true)
+            trackViewHelp()
+          }}
         >
           <HelpIcon color='primary' />
         </IconButton>
@@ -217,7 +236,11 @@ const App = () => {
           <Typography>Allow any points</Typography>
           <Checkbox
             checked={allowAnyPoints}
-            onChange={() => setAllowAnyPoints(!allowAnyPoints)}
+            onChange={() => {
+              const newValue = !allowAnyPoints
+              setAllowAnyPoints(newValue)
+              trackSettingsChange('allowAnyPoints', newValue)
+            }}
             color='default'
           />
 
@@ -235,7 +258,11 @@ const App = () => {
           <Input
             type='number'
             value={maxPoints}
-            onChange={(e) => setMaxPoints(parseInt(e.target.value))}
+            onChange={(e) => {
+              const newValue = parseInt(e.target.value)
+              setMaxPoints(newValue)
+              trackSettingsChange('maxPoints', newValue)
+            }}
             sx={{
               width: 100,
             }}

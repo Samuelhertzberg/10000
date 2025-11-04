@@ -8,6 +8,7 @@ import Color from 'color';
 import { mdiDice6Outline, mdiSkullOutline } from '@mdi/js';
 import Icon from '@mdi/react';
 import { Badge, BadgeLegend, BadgeType } from '../Components/Badge';
+import { trackAddPoints, trackScoreExpansion } from '../analytics';
 
 
 interface PlayerRowProps {
@@ -28,6 +29,7 @@ const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, allowAnyPoints, maxP
     const totalScore = score.reduce((a, b) => a + b, 0)
     const handleAddPoints = (points: number) => {
         addPoints(points)
+        trackAddPoints(points, name)
         setDialogOpen(false)
     }
 
@@ -110,7 +112,11 @@ const PlayerRow: React.FC<PlayerRowProps> = ({ name, score, allowAnyPoints, maxP
                                 px: 2,
                                 overflow: 'hidden',
                             }}
-                                onClick={() => setPointsExpanded(!pointsExpanded)}
+                                onClick={() => {
+                                    const newExpanded = !pointsExpanded
+                                    setPointsExpanded(newExpanded)
+                                    trackScoreExpansion(newExpanded)
+                                }}
 
                             >
                                 <PlayerInfo text={name} rotatedText={totalScore} showBadges={true} showRotatedBadges={false} />
