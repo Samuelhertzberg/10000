@@ -84,6 +84,7 @@ export const GameEvents = {
  * Track points addition
  */
 export const trackAddPoints = (points: number): void => {
+  if (points <= 0) return; // Ignore non-positive points
   trackEvent(GameEvents.ADD_POINTS, {
     points,
   });
@@ -93,6 +94,7 @@ export const trackAddPoints = (points: number): void => {
  * Track game reset
  */
 export const trackGameReset = (playerCount: number, roundsPlayed: number): void => {
+  if (roundsPlayed <= 0 || playerCount <= 0) return; // Ignore resets with no rounds or players
   trackEvent(GameEvents.GAME_RESET, {
     playerCount,
     roundsPlayed,
@@ -107,6 +109,7 @@ export const trackGameWon = (
   playerCount: number,
   roundsPlayed: number
 ): void => {
+  if (finalScore <= 0 || playerCount <= 0 || roundsPlayed <= 0) return; // Ignore invalid game won events
   trackEvent(GameEvents.GAME_WON, {
     finalScore,
     playerCount,
@@ -136,7 +139,9 @@ export const trackSettingsChange = (
  * Track help dialog view
  */
 export const trackViewHelp = (): void => {
-  trackEvent(GameEvents.VIEW_HELP);
+  trackEvent(GameEvents.VIEW_HELP,
+    { action: 'view_help' }
+  );
 };
 
 /**
@@ -144,6 +149,7 @@ export const trackViewHelp = (): void => {
  */
 export const trackScoreExpansion = (expanded: boolean): void => {
   trackEvent(
-    expanded ? GameEvents.EXPAND_SCORES : GameEvents.COLLAPSE_SCORES
+    expanded ? GameEvents.EXPAND_SCORES : GameEvents.COLLAPSE_SCORES,
+    expanded ? { action: 'expand' } : { action: 'collapse' }
   );
 };

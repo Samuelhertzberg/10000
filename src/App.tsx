@@ -105,7 +105,10 @@ const App = () => {
 
   const onResetGame = () => {
     const roundsPlayed = Math.max(0, ...players.map(p => p.score.length))
-    trackGameReset(players.length, roundsPlayed)
+    // Only track reset if there are players and rounds played
+    if (players.length > 0 && roundsPlayed > 0) {
+      trackGameReset(players.length, roundsPlayed)
+    }
     setPlayers(players.map(p => ({ ...p, score: [] })))
     setResetDialogOpen(false)
   }
