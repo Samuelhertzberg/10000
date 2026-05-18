@@ -36,6 +36,8 @@ jobs:
       - name: Install dependencies
         run: yarn
       - name: Build
+        env:
+          DEPLOY_TARGET: gh-pages
         run: yarn build
 
       - name: Upload static files as artifact

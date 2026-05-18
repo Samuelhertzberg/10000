@@ -10,6 +10,7 @@ import HelpDialog from './HelpDialog'
 import SettingsIcon from '@mui/icons-material/Settings'
 import HelpIcon from '@mui/icons-material/Help'
 import { BadgeType } from './Components/Badge';
+import { track, slotFor, resetSession } from './lib/analytics'
 
 type player = {
   name: string
@@ -78,11 +79,13 @@ const App = () => {
       return player
     })
     setPlayers(newPlayers)
+    track('points_added', { slot: slotFor(name), points })
     window.scrollTo(0, 0)
   }
 
   const onAddPlayer = (name: string) => {
     setPlayers([...players, { name, score: [] }])
+    track('player_added', { slot: slotFor(name) })
     window.scrollTo(0, 0)
   }
 
@@ -92,6 +95,16 @@ const App = () => {
   }
 
   const onResetGame = () => {
+    const maxScore = players.reduce(
+      (m, p) => Math.max(m, p.score.reduce((a, b) => a + b, 0)),
+      0,
+    )
+    track('game_reset', {
+      player_count: players.length,
+      max_score: maxScore,
+      max_points: maxPoints,
+    })
+    resetSession()
     setPlayers(players.map(p => ({ ...p, score: [] })))
     setResetDialogOpen(false)
   }

@@ -1,0 +1,80 @@
+name: Deploy to GCP (Cloud Run)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['master']
+    # Run only when something Cloud Run actually cares about changes.
+    paths:
+      - 'src/**'
+      - 'server/**'
+      - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'tsconfig.json'
+      - 'tsconfig.node.json'
+      - 'vite.config.ts'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - '.github/workflows/deploy-gcp.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-gcp
+  cancel-in-progress: true
+
+env:
+  GCP_PROJECT: ${{ vars.GCP_PROJECT }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  AR_REPO: app
+  SERVICE: app
+  RUNTIME_SA: ${{ vars.RUNTIME_SA }}
+  VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+  ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build + push image
+        env:
+          IMAGE: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.AR_REPO }}/${{ env.SERVICE }}:${{ github.sha }}
+        run: |
+          docker build \
+            --build-arg "VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}" \
+            -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Deploy to Cloud Run
+        env:
+          IMAGE: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.AR_REPO }}/${{ env.SERVICE }}:${{ github.sha }}
+        run: |
+          gcloud run deploy "${SERVICE}" \
+            --image "$IMAGE" \
+            --region "${GCP_REGION}" \
+            --platform managed \
+            --service-account "${RUNTIME_SA}" \
+            --allow-unauthenticated \
+            --min-instances 0 \
+            --max-instances 3 \
+            --memory 512Mi \
+            --cpu 1 \
+            --port 8080 \
+            --set-env-vars "GCP_PROJECT=${GCP_PROJECT},GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID},ADMIN_EMAIL=${ADMIN_EMAIL}"
