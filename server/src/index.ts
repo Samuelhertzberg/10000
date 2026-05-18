@@ -22,15 +22,17 @@ app.route('/api/admin', adminRoute)
 // Any /api path that didn't match above is a real 404, not the SPA shell.
 app.all('/api/*', (c) => c.json({ error: 'not found' }, 404))
 
+// Vite puts all bundled assets under /assets/. Scope serveStatic here
+// so it doesn't intercept healthz or API routes.
 app.use(
-  '/*',
+  '/assets/*',
   serveStatic({
     root: FRONTEND_DIST,
     rewriteRequestPath: (path) => path,
   }),
 )
 
-// SPA fallback — anything else returns index.html.
+// Everything else serves the SPA shell (react-router handles client routing).
 app.get('*', async (c) => {
   const html = await readFile(resolve(FRONTEND_DIST, 'index.html'), 'utf8')
   return c.html(html)
