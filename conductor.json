@@ -1,0 +1,7 @@
+{
+  "scripts": {
+    "setup": "pnpm install",
+    "run": "pnpm run conductor:run",
+    "archive": "pnpm run conductor:archive"
+  }
+}

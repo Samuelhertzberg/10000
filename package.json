@@ -2,13 +2,22 @@
   "name": "10000",
   "private": true,
   "version": "0.0.0",
+  "packageManager": "pnpm@10.28.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "deploy": "vite build && gh-pages -d dist"
+    "deploy": "vite build && gh-pages -d dist",
+    "conductor:run": "docker compose -f docker-compose.conductor.yml up --build",
+    "conductor:archive": "sh -c 'docker compose -f docker-compose.conductor.yml down --volumes --rmi local --remove-orphans || true; rm -rf node_modules server/node_modules dist server/dist'"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "protobufjs"
+    ]
   },
   "dependencies": {
     "@emotion/react": "^11.11.4",

@@ -3,10 +3,20 @@ import type { Context, Next } from 'hono'
 
 const clientId = process.env.GOOGLE_CLIENT_ID
 const adminEmail = process.env.ADMIN_EMAIL
+const adminAuthBypass = process.env.ADMIN_AUTH_BYPASS === 'true'
+const firestoreEmulatorHost = process.env.FIRESTORE_EMULATOR_HOST
 
 const oauth = new OAuth2Client()
 
 export const requireAdmin = async (c: Context, next: Next) => {
+  if (adminAuthBypass) {
+    if (!firestoreEmulatorHost) {
+      return c.json({ error: 'admin auth bypass requires firestore emulator' }, 500)
+    }
+    await next()
+    return
+  }
+
   if (!clientId || !adminEmail) {
     return c.json({ error: 'server misconfigured' }, 500)
   }
