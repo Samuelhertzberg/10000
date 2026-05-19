@@ -42,18 +42,35 @@ const theme = createTheme({
 });
 
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? ''
+const isAdminAuthBypassed = import.meta.env.VITE_ADMIN_AUTH_BYPASS === 'true'
+
+const routes = (
+  <BrowserRouter basename={import.meta.env.BASE_URL}>
+    <Routes>
+      <Route path="/" element={<App />} />
+      <Route
+        path="/admin"
+        element={
+          <Admin
+            googleClientId={googleClientId}
+            isAuthBypassed={isAdminAuthBypassed}
+          />
+        }
+      />
+    </Routes>
+  </BrowserRouter>
+)
+
+const app = googleClientId ? (
+  <GoogleOAuthProvider clientId={googleClientId}>
+    {routes}
+  </GoogleOAuthProvider>
+) : routes
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ThemeProvider theme={theme}>
-      <GoogleOAuthProvider clientId={googleClientId}>
-        <BrowserRouter basename={import.meta.env.BASE_URL}>
-          <Routes>
-            <Route path="/" element={<App />} />
-            <Route path="/admin" element={<Admin />} />
-          </Routes>
-        </BrowserRouter>
-      </GoogleOAuthProvider>
+      {app}
     </ThemeProvider>
   </React.StrictMode>,
 )
