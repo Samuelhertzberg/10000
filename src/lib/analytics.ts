@@ -7,22 +7,68 @@ export type EventType =
 const SESSION_KEY = 'analytics_session_id'
 const SLOTS_KEY = 'analytics_slot_map'
 
-const getSessionId = (): string => {
-  let id = sessionStorage.getItem(SESSION_KEY)
-  if (!id) {
-    id = crypto.randomUUID()
-    sessionStorage.setItem(SESSION_KEY, id)
+let fallbackSessionId: string | null = null
+let fallbackSlotMap: Record<string, number> = {}
+let gameStartFired = false
+
+const makeId = (): string => {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+const readSessionItem = (key: string): string | null => {
+  try {
+    return sessionStorage.getItem(key)
+  } catch {
+    return null
   }
-  return id
+}
+
+const writeSessionItem = (key: string, value: string) => {
+  try {
+    sessionStorage.setItem(key, value)
+  } catch {
+    // Analytics is best-effort and should never block the game UI.
+  }
+}
+
+const removeSessionItem = (key: string) => {
+  try {
+    sessionStorage.removeItem(key)
+  } catch {
+    // Analytics is best-effort and should never block the game UI.
+  }
+}
+
+const getSessionId = (): string => {
+  const storedId = readSessionItem(SESSION_KEY)
+  if (storedId) {
+    fallbackSessionId = storedId
+    return storedId
+  }
+
+  if (!fallbackSessionId) fallbackSessionId = makeId()
+  writeSessionItem(SESSION_KEY, fallbackSessionId)
+  return fallbackSessionId
 }
 
 const getSlotMap = (): Record<string, number> => {
-  const raw = sessionStorage.getItem(SLOTS_KEY)
-  return raw ? JSON.parse(raw) : {}
+  const raw = readSessionItem(SLOTS_KEY)
+  if (!raw) return { ...fallbackSlotMap }
+
+  try {
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { ...fallbackSlotMap }
+
+    fallbackSlotMap = parsed as Record<string, number>
+    return { ...fallbackSlotMap }
+  } catch {
+    return { ...fallbackSlotMap }
+  }
 }
 
 const saveSlotMap = (map: Record<string, number>) => {
-  sessionStorage.setItem(SLOTS_KEY, JSON.stringify(map))
+  fallbackSlotMap = { ...map }
+  writeSessionItem(SLOTS_KEY, JSON.stringify(map))
 }
 
 // Map a player's typed name to a stable per-session slot index so names
@@ -36,15 +82,14 @@ export const slotFor = (name: string): number => {
   return next
 }
 
-let gameStartFired = false
-
 const send = (type: EventType, payload: Record<string, unknown>) => {
-  const body = JSON.stringify({
-    session_id: getSessionId(),
-    type,
-    payload,
-  })
   try {
+    const body = JSON.stringify({
+      session_id: getSessionId(),
+      type,
+      payload,
+    })
+
     fetch('/api/events', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -57,17 +102,23 @@ const send = (type: EventType, payload: Record<string, unknown>) => {
 }
 
 export const track = (type: EventType, payload: Record<string, unknown> = {}) => {
-  if (!gameStartFired && type !== 'game_start') {
-    gameStartFired = true
-    send('game_start', {})
+  try {
+    if (!gameStartFired && type !== 'game_start') {
+      gameStartFired = true
+      send('game_start', {})
+    }
+    if (type === 'game_start') gameStartFired = true
+    send(type, payload)
+  } catch {
+    /* fire-and-forget */
   }
-  if (type === 'game_start') gameStartFired = true
-  send(type, payload)
 }
 
 // Reset session boundary (after a game_reset) so the next event starts a new game.
 export const resetSession = () => {
-  sessionStorage.removeItem(SESSION_KEY)
-  sessionStorage.removeItem(SLOTS_KEY)
+  fallbackSessionId = null
+  fallbackSlotMap = {}
+  removeSessionItem(SESSION_KEY)
+  removeSessionItem(SLOTS_KEY)
   gameStartFired = false
 }
