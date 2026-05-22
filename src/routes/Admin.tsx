@@ -21,13 +21,14 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
 
-type EventType = 'game_start' | 'player_added' | 'points_added' | 'game_reset'
+type EventType = 'game_start' | 'player_added' | 'points_added' | 'game_ended' | 'game_reset'
 type TimelineScale = '15m' | 'hour' | 'day' | 'week'
 
 type RawEventValue = {
@@ -66,6 +67,7 @@ type Stats = {
     player_count: number
     rounds: number
     max_score: number
+    started_at: string | null
     ended_at: string | null
   }[]
   event_data_size: number
@@ -82,6 +84,7 @@ const EVENT_LABELS: Record<EventType, string> = {
   game_start: 'Game starts',
   player_added: 'Players added',
   points_added: 'Points added',
+  game_ended: 'Games ended',
   game_reset: 'Game resets',
 }
 
@@ -89,6 +92,7 @@ const EVENT_COLORS: Record<EventType, string> = {
   game_start: '#1976d2',
   player_added: '#2e7d32',
   points_added: '#ed6c02',
+  game_ended: '#d32f2f',
   game_reset: '#9c27b0',
 }
 
@@ -388,7 +392,11 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
                     formatter={(value) => [value, 'Events']}
                     labelFormatter={(value) => EVENT_LABELS[value as EventType] ?? value}
                   />
-                  <Bar dataKey="count" fill="#1976d2" />
+                  <Bar dataKey="count" fill="#1976d2">
+                    {stats.event_type_counts.map((event) => (
+                      <Cell key={event.type} fill={EVENT_COLORS[event.type]} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </ChartPanel>
@@ -435,6 +443,7 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
                   <TableCell align="right">Players</TableCell>
                   <TableCell align="right">Rounds</TableCell>
                   <TableCell align="right">Max score</TableCell>
+                  <TableCell>Started at</TableCell>
                   <TableCell>Ended at</TableCell>
                 </TableRow>
               </TableHead>
@@ -445,6 +454,7 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
                     <TableCell align="right">{g.player_count}</TableCell>
                     <TableCell align="right">{g.rounds}</TableCell>
                     <TableCell align="right">{g.max_score}</TableCell>
+                    <TableCell>{g.started_at ? formatDateTime(g.started_at) : '-'}</TableCell>
                     <TableCell>{g.ended_at ? formatDateTime(g.ended_at) : '-'}</TableCell>
                   </TableRow>
                 ))}

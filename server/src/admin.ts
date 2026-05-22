@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { db } from './firestore.js'
 import { requireAdmin } from './auth.js'
 
-const EVENT_TYPES = ['game_start', 'player_added', 'points_added', 'game_reset'] as const
+const EVENT_TYPES = ['game_start', 'player_added', 'points_added', 'game_ended', 'game_reset'] as const
 type EventType = typeof EVENT_TYPES[number]
 
 const RECENT_LIMIT = 50
@@ -14,6 +14,7 @@ const EVENT_VALUE_BOUNDS: Record<EventType, {
   game_start: { min: 0, max: 10000, value_label: 'Max points' },
   player_added: { min: 1, max: 10, value_label: 'Player slot' },
   points_added: { min: 0, max: 2000, value_label: 'Points' },
+  game_ended: { min: 0, max: 10000, value_label: 'Ending score' },
   game_reset: { min: 0, max: 10000, value_label: 'Max score' },
 }
 
@@ -56,6 +57,9 @@ const eventValue = (type: EventType, payload: Record<string, unknown>) => {
   }
   if (type === 'points_added') {
     return typeof payload.points === 'number' ? payload.points : null
+  }
+  if (type === 'game_ended') {
+    return typeof payload.ending_score === 'number' ? payload.ending_score : null
   }
   if (type === 'game_reset') {
     return typeof payload.max_score === 'number' ? payload.max_score : null
@@ -110,12 +114,15 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
 
   recentSessions.forEach((d) => {
     const v = d.data()
+    const startedAt = toDate(v.started_at) ?? toDate(v.created_at)
+    const endedAt = toDate(v.ended_at)
     recent_games.push({
       session_id: d.id,
       player_count: v.player_count ?? 0,
       rounds: v.rounds ?? 0,
       max_score: v.max_score ?? 0,
-      ended_at: v.ended_at?.toDate?.()?.toISOString?.() ?? null,
+      started_at: startedAt?.toISOString() ?? null,
+      ended_at: endedAt?.toISOString() ?? null,
     })
   })
 

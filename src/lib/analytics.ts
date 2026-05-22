@@ -2,13 +2,16 @@ export type EventType =
   | 'game_start'
   | 'player_added'
   | 'points_added'
+  | 'game_ended'
   | 'game_reset'
 
 const SESSION_KEY = 'analytics_session_id'
 const SLOTS_KEY = 'analytics_slot_map'
+const GAME_ENDED_KEY = 'analytics_game_ended'
 
 let fallbackSessionId: string | null = null
 let fallbackSlotMap: Record<string, number> = {}
+let fallbackGameEnded = false
 let gameStartFired = false
 
 const makeId = (): string => {
@@ -71,6 +74,20 @@ const saveSlotMap = (map: Record<string, number>) => {
   writeSessionItem(SLOTS_KEY, JSON.stringify(map))
 }
 
+const hasGameEnded = (): boolean => {
+  const stored = readSessionItem(GAME_ENDED_KEY)
+  if (stored === 'true') {
+    fallbackGameEnded = true
+    return true
+  }
+  return fallbackGameEnded
+}
+
+const markGameEnded = () => {
+  fallbackGameEnded = true
+  writeSessionItem(GAME_ENDED_KEY, 'true')
+}
+
 // Map a player's typed name to a stable per-session slot index so names
 // never leave the browser.
 export const slotFor = (name: string): number => {
@@ -114,11 +131,23 @@ export const track = (type: EventType, payload: Record<string, unknown> = {}) =>
   }
 }
 
+export const trackGameEnded = (payload: Record<string, unknown> = {}) => {
+  try {
+    if (hasGameEnded()) return
+    markGameEnded()
+    track('game_ended', payload)
+  } catch {
+    /* fire-and-forget */
+  }
+}
+
 // Reset session boundary (after a game_reset) so the next event starts a new game.
 export const resetSession = () => {
   fallbackSessionId = null
   fallbackSlotMap = {}
+  fallbackGameEnded = false
   removeSessionItem(SESSION_KEY)
   removeSessionItem(SLOTS_KEY)
+  removeSessionItem(GAME_ENDED_KEY)
   gameStartFired = false
 }
