@@ -84,7 +84,13 @@ const App = () => {
       return player
     })
     setPlayers(newPlayers)
-    track('points_added', { slot, points })
+    track('points_added', {
+      slot,
+      points,
+      total_score: newTotal,
+      player_count: players.length,
+      max_points: maxPoints,
+    })
     if (previousTotal < maxPoints && newTotal >= maxPoints) {
       trackGameEnded({
         slot,

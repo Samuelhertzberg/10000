@@ -114,13 +114,15 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
 
   recentSessions.forEach((d) => {
     const v = d.data()
+    const maxScore = typeof v.max_score === 'number' ? v.max_score : 0
+    const maxPoints = typeof v.max_points === 'number' ? v.max_points : 10000
     const startedAt = toDate(v.started_at) ?? toDate(v.created_at)
-    const endedAt = toDate(v.ended_at)
+    const endedAt = toDate(v.ended_at) ?? (maxScore >= maxPoints ? toDate(v.last_event_at) : null)
     recent_games.push({
       session_id: d.id,
       player_count: v.player_count ?? 0,
       rounds: v.rounds ?? 0,
-      max_score: v.max_score ?? 0,
+      max_score: maxScore,
       started_at: startedAt?.toISOString() ?? null,
       ended_at: endedAt?.toISOString() ?? null,
     })

@@ -53,7 +53,14 @@ const updateSessionSummary = async (
     } else if (type === 'points_added') {
       next.rounds = (cur.rounds ?? 0) + 1
       const p = typeof payload.points === 'number' ? payload.points : 0
-      next.max_score = Math.max(cur.max_score ?? 0, p)
+      const totalScore = typeof payload.total_score === 'number' ? payload.total_score : p
+      const maxPoints = typeof payload.max_points === 'number' ? payload.max_points : cur.max_points ?? 10000
+      next.max_score = Math.max(cur.max_score ?? 0, totalScore)
+      if (!cur.ended_at && totalScore >= maxPoints) {
+        next.ended_at = FieldValue.serverTimestamp()
+      }
+      if (typeof payload.player_count === 'number') next.player_count = payload.player_count
+      if (typeof payload.max_points === 'number') next.max_points = payload.max_points
     } else if (type === 'game_ended') {
       next.ended_at = FieldValue.serverTimestamp()
       if (typeof payload.player_count === 'number') next.player_count = payload.player_count
