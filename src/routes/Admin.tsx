@@ -3,6 +3,10 @@ import {
   Alert,
   Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Paper,
   Stack,
   Table,
@@ -22,6 +26,8 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -75,6 +81,63 @@ type Stats = {
   event_window_end: string | null
 }
 
+type SessionPlayer = {
+  slot: number
+  key: string
+  label: string
+  total_score: number
+  rounds: number
+  top_round_score: number | null
+  lowest_round_score: number | null
+}
+
+type SessionRound = {
+  slot: number
+  label: string
+  points: number
+  total_score: number
+  created_at: string | null
+}
+
+type SessionTimelinePoint = {
+  timestamp: number
+  created_at: string | null
+  round: number
+  event_slot: number | null
+  event_player: string | null
+  event_points: number | null
+} & Record<string, string | number | null>
+
+type SessionDetail = {
+  session_id: string
+  summary: {
+    player_count: number
+    rounds: number
+    max_score: number
+    max_points: number
+    top_score: number
+    lowest_score: number
+    started_at: string | null
+    ended_at: string | null
+    created_at: string | null
+    last_event_at: string | null
+    duration_ms: number | null
+    avg_time_between_rounds_ms: number | null
+    shortest_time_between_rounds_ms: number | null
+    longest_time_between_rounds_ms: number | null
+  }
+  players: SessionPlayer[]
+  top_rounds: SessionRound[]
+  lowest_rounds: SessionRound[]
+  timeline: SessionTimelinePoint[]
+  events: {
+    id: string
+    type: string
+    created_at: string | null
+    payload: Record<string, unknown>
+  }[]
+}
+
 type AdminProps = {
   googleClientId: string
   isAuthBypassed: boolean
@@ -103,6 +166,20 @@ const TIMELINE_SCALES: { value: TimelineScale; label: string }[] = [
   { value: 'week', label: 'Week' },
 ]
 
+const PLAYER_LINE_COLORS = [
+  '#1976d2',
+  '#2e7d32',
+  '#ed6c02',
+  '#9c27b0',
+  '#d32f2f',
+  '#00838f',
+  '#6d4c41',
+  '#455a64',
+]
+
+const authHeaders = (credential?: string): HeadersInit =>
+  credential ? { Authorization: `Bearer ${credential}` } : {}
+
 const formatDateTime = (value: string | number) => {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return String(value)
@@ -112,6 +189,19 @@ const formatDateTime = (value: string | number) => {
     hour: '2-digit',
     minute: '2-digit',
   }).format(date)
+}
+
+const formatOptionalDateTime = (value: string | null) => value ? formatDateTime(value) : '-'
+
+const formatDuration = (value: number | null) => {
+  if (value === null || Number.isNaN(value)) return '-'
+  const totalSeconds = Math.max(0, Math.round(value / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  if (hours > 0) return `${hours}h ${minutes}m`
+  if (minutes > 0) return `${minutes}m ${seconds}s`
+  return `${seconds}s`
 }
 
 const formatTimelineTick = (value: number, scale: TimelineScale) => {
@@ -202,17 +292,18 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [timelineScale, setTimelineScale] = useState<TimelineScale>('hour')
+  const [sessionDialogOpen, setSessionDialogOpen] = useState(false)
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
+  const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null)
+  const [sessionLoading, setSessionLoading] = useState(false)
+  const [sessionError, setSessionError] = useState<string | null>(null)
   const isGoogleConfigured = googleClientId.trim().length > 0
 
   const fetchStats = useCallback(async (credential?: string) => {
-    const headers: HeadersInit = credential
-      ? { Authorization: `Bearer ${credential}` }
-      : {}
-
     try {
       setLoading(true)
       setError(null)
-      const r = await fetch('/api/admin/stats', { headers })
+      const r = await fetch('/api/admin/stats', { headers: authHeaders(credential) })
       if (!r.ok) {
         setError(
           r.status === 500
@@ -226,6 +317,26 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
       setError(String(e))
     } finally {
       setLoading(false)
+    }
+  }, [])
+
+  const fetchSession = useCallback(async (sessionId: string, credential?: string) => {
+    try {
+      setSessionLoading(true)
+      setSessionError(null)
+      setSessionDetail(null)
+      const r = await fetch(`/api/admin/sessions/${encodeURIComponent(sessionId)}`, {
+        headers: authHeaders(credential),
+      })
+      if (!r.ok) {
+        setSessionError(`Session request failed: ${r.status}`)
+        return
+      }
+      setSessionDetail(await r.json())
+    } catch (e) {
+      setSessionError(String(e))
+    } finally {
+      setSessionLoading(false)
     }
   }, [])
 
@@ -257,6 +368,12 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
   const gameStartCount = stats?.event_type_counts
     .find((event) => event.type === 'game_start')
     ?.count ?? 0
+
+  const openSession = (sessionId: string) => {
+    setSelectedSessionId(sessionId)
+    setSessionDialogOpen(true)
+    void fetchSession(sessionId, token ?? undefined)
+  }
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1360, mx: 'auto' }}>
@@ -449,8 +566,25 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
               </TableHead>
               <TableBody>
                 {stats.recent_games.map((g) => (
-                  <TableRow key={g.session_id}>
-                    <TableCell><code>{g.session_id.slice(0, 8)}</code></TableCell>
+                  <TableRow
+                    hover
+                    key={g.session_id}
+                    onClick={() => openSession(g.session_id)}
+                    sx={{ cursor: 'pointer' }}
+                  >
+                    <TableCell>
+                      <Button
+                        size="small"
+                        variant="text"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          openSession(g.session_id)
+                        }}
+                        sx={{ minWidth: 0, p: 0, textTransform: 'none' }}
+                      >
+                        <code>{g.session_id.slice(0, 8)}</code>
+                      </Button>
+                    </TableCell>
                     <TableCell align="right">{g.player_count}</TableCell>
                     <TableCell align="right">{g.rounds}</TableCell>
                     <TableCell align="right">{g.max_score}</TableCell>
@@ -463,9 +597,264 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
           </Paper>
         </Stack>
       )}
+      <SessionViewerDialog
+        detail={sessionDetail}
+        error={sessionError}
+        loading={sessionLoading}
+        onClose={() => setSessionDialogOpen(false)}
+        open={sessionDialogOpen}
+        sessionId={selectedSessionId}
+      />
     </Box>
   )
 }
+
+const SessionViewerDialog = ({
+  detail,
+  error,
+  loading,
+  onClose,
+  open,
+  sessionId,
+}: {
+  detail: SessionDetail | null
+  error: string | null
+  loading: boolean
+  onClose: () => void
+  open: boolean
+  sessionId: string | null
+}) => (
+  <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
+    <DialogTitle>
+      Session {detail || sessionId ? <code>{(detail?.session_id ?? sessionId)?.slice(0, 8)}</code> : ''}
+    </DialogTitle>
+    <DialogContent dividers>
+      <Stack spacing={2.5}>
+        {loading && <Alert severity="info">Loading session...</Alert>}
+        {error && <Alert severity="error">{error}</Alert>}
+        {detail && (
+          <>
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: {
+                  xs: '1fr',
+                  sm: 'repeat(2, minmax(0, 1fr))',
+                  lg: 'repeat(4, minmax(0, 1fr))',
+                },
+                gap: 2,
+              }}
+            >
+              <Stat label="Players" value={detail.summary.player_count} />
+              <Stat label="Rounds" value={detail.summary.rounds} />
+              <Stat label="Top score" value={detail.summary.top_score} />
+              <Stat label="Lowest score" value={detail.summary.lowest_score} />
+              <Stat label="Max round" value={detail.summary.max_score} />
+              <Stat label="Target" value={detail.summary.max_points} />
+              <Stat label="Duration" value={formatDuration(detail.summary.duration_ms)} />
+              <Stat label="Avg round gap" value={formatDuration(detail.summary.avg_time_between_rounds_ms)} />
+            </Box>
+
+            <ChartPanel
+              title="Score Timeline"
+              subtitle="Cumulative score by anonymous player slot"
+              height={360}
+            >
+              {detail.timeline.length > 1 && detail.players.length > 0 ? (
+                <ResponsiveContainer>
+                  <LineChart data={detail.timeline} margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="timestamp"
+                      type="number"
+                      domain={['dataMin', 'dataMax']}
+                      tickFormatter={(value) => formatDateTime(Number(value))}
+                      minTickGap={36}
+                    />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip
+                      labelFormatter={(value) => formatDateTime(Number(value))}
+                      formatter={(value, name) => [value, name]}
+                    />
+                    {detail.players.map((player, index) => (
+                      <Line
+                        key={player.key}
+                        type="monotone"
+                        dataKey={player.key}
+                        name={player.label}
+                        stroke={PLAYER_LINE_COLORS[index % PLAYER_LINE_COLORS.length]}
+                        strokeWidth={2}
+                        dot={detail.timeline.length <= 30}
+                        isAnimationActive={false}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyPanel>No score events for this session.</EmptyPanel>
+              )}
+            </ChartPanel>
+
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' },
+                gap: 2,
+              }}
+            >
+              <Paper sx={{ p: 2, minWidth: 0 }}>
+                <Typography variant="h6">Players</Typography>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Player</TableCell>
+                      <TableCell align="right">Total</TableCell>
+                      <TableCell align="right">Rounds</TableCell>
+                      <TableCell align="right">Best round</TableCell>
+                      <TableCell align="right">Lowest round</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {detail.players.map((player) => (
+                      <TableRow key={player.key}>
+                        <TableCell>{player.label}</TableCell>
+                        <TableCell align="right">{player.total_score}</TableCell>
+                        <TableCell align="right">{player.rounds}</TableCell>
+                        <TableCell align="right">{player.top_round_score ?? '-'}</TableCell>
+                        <TableCell align="right">{player.lowest_round_score ?? '-'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Paper>
+
+              <Paper sx={{ p: 2, minWidth: 0 }}>
+                <Typography variant="h6">Round Timing</Typography>
+                <Table size="small">
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>Started</TableCell>
+                      <TableCell align="right">{formatOptionalDateTime(detail.summary.started_at)}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Ended</TableCell>
+                      <TableCell align="right">{formatOptionalDateTime(detail.summary.ended_at)}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Shortest gap</TableCell>
+                      <TableCell align="right">{formatDuration(detail.summary.shortest_time_between_rounds_ms)}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Longest gap</TableCell>
+                      <TableCell align="right">{formatDuration(detail.summary.longest_time_between_rounds_ms)}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </Paper>
+            </Box>
+
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' },
+                gap: 2,
+              }}
+            >
+              <RoundList title="Top Rounds" rounds={detail.top_rounds} />
+              <RoundList title="Lowest Rounds" rounds={detail.lowest_rounds} />
+            </Box>
+
+            <Paper sx={{ p: 2, minWidth: 0 }}>
+              <Typography variant="h6">Events</Typography>
+              <Box sx={{ maxHeight: 320, overflow: 'auto' }}>
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Time</TableCell>
+                      <TableCell>Type</TableCell>
+                      <TableCell>Payload</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {detail.events.map((event) => (
+                      <TableRow key={event.id}>
+                        <TableCell>{formatOptionalDateTime(event.created_at)}</TableCell>
+                        <TableCell>{EVENT_LABELS[event.type as EventType] ?? event.type}</TableCell>
+                        <TableCell>
+                          <Typography
+                            component="code"
+                            sx={{
+                              display: 'block',
+                              fontFamily: 'monospace',
+                              fontSize: 12,
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
+                            }}
+                          >
+                            {JSON.stringify(event.payload)}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Box>
+            </Paper>
+          </>
+        )}
+      </Stack>
+    </DialogContent>
+    <DialogActions>
+      <Button onClick={onClose}>Close</Button>
+    </DialogActions>
+  </Dialog>
+)
+
+const RoundList = ({ title, rounds }: { title: string; rounds: SessionRound[] }) => (
+  <Paper sx={{ p: 2, minWidth: 0 }}>
+    <Typography variant="h6">{title}</Typography>
+    {rounds.length === 0 ? (
+      <EmptyPanel>No rounds.</EmptyPanel>
+    ) : (
+      <Table size="small">
+        <TableHead>
+          <TableRow>
+            <TableCell>Player</TableCell>
+            <TableCell align="right">Points</TableCell>
+            <TableCell align="right">Total after</TableCell>
+            <TableCell>Time</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {rounds.map((round, index) => (
+            <TableRow key={`${round.created_at}-${round.slot}-${index}`}>
+              <TableCell>{round.label}</TableCell>
+              <TableCell align="right">{round.points}</TableCell>
+              <TableCell align="right">{round.total_score}</TableCell>
+              <TableCell>{formatOptionalDateTime(round.created_at)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    )}
+  </Paper>
+)
+
+const EmptyPanel = ({ children }: { children: ReactNode }) => (
+  <Box
+    sx={{
+      alignItems: 'center',
+      color: 'text.secondary',
+      display: 'flex',
+      height: '100%',
+      justifyContent: 'center',
+      minHeight: 120,
+      textAlign: 'center',
+    }}
+  >
+    <Typography variant="body2">{children}</Typography>
+  </Box>
+)
 
 const ToggleGroup = <T extends string>({
   value,

@@ -42,11 +42,21 @@ const toDate = (value: unknown): Date | null => {
   return null
 }
 
+const toIso = (value: unknown) => toDate(value)?.toISOString() ?? null
+
 const startOfHour = (date: Date) => {
   const d = new Date(date)
   d.setUTCMinutes(0, 0, 0)
   return d.toISOString()
 }
+
+const slotFromPayload = (payload: Record<string, unknown>) =>
+  typeof payload.slot === 'number' && Number.isFinite(payload.slot)
+    ? payload.slot
+    : null
+
+const playerKey = (slot: number) => `player_${slot}`
+const playerLabel = (slot: number) => `Player ${slot + 1}`
 
 const eventValue = (type: EventType, payload: Record<string, unknown>) => {
   if (type === 'game_start') {
@@ -264,5 +274,198 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
     event_data_size: allEvents.size,
     event_window_start: eventWindowStart,
     event_window_end: eventWindowEnd,
+  })
+}).get('/sessions/:sessionId', async (c) => {
+  const sessionId = c.req.param('sessionId')
+  const sessionsCol = db().collection('sessions')
+  const eventsCol = db().collection('events')
+
+  const [sessionSnap, eventSnaps] = await Promise.all([
+    sessionsCol.doc(sessionId).get(),
+    eventsCol.where('session_id', '==', sessionId).get(),
+  ])
+
+  if (!sessionSnap.exists && eventSnaps.empty) {
+    return c.json({ error: 'not found' }, 404)
+  }
+
+  const session = sessionSnap.exists ? sessionSnap.data()! : {}
+  const storedPlayerCount = typeof session.player_count === 'number' ? session.player_count : 0
+  const maxPoints = typeof session.max_points === 'number' ? session.max_points : 10000
+  const slots = new Set<number>()
+  for (let slot = 0; slot < storedPlayerCount; slot += 1) slots.add(slot)
+
+  const events = eventSnaps.docs
+    .map((d) => {
+      const v = d.data()
+      const payload = v.payload && typeof v.payload === 'object'
+        ? v.payload as Record<string, unknown>
+        : {}
+      const createdAt = toDate(v.created_at)
+      const slot = slotFromPayload(payload)
+      if (slot !== null) slots.add(slot)
+
+      return {
+        id: d.id,
+        type: typeof v.type === 'string' ? v.type : 'unknown',
+        created_at: createdAt?.toISOString() ?? null,
+        timestamp: createdAt?.getTime() ?? 0,
+        payload,
+      }
+    })
+    .sort((a, b) => a.timestamp - b.timestamp || a.id.localeCompare(b.id))
+
+  const slotList = [...slots].sort((a, b) => a - b)
+  const totals = new Map(slotList.map((slot) => [slot, 0]))
+  const playerRounds = new Map(slotList.map((slot) => [slot, 0]))
+  const playerTopRound = new Map(slotList.map((slot) => [slot, null as number | null]))
+  const playerLowestRound = new Map(slotList.map((slot) => [slot, null as number | null]))
+  const scoreEvents: {
+    created_at: string | null
+    timestamp: number
+    points: number
+    slot: number
+    total_score: number
+  }[] = []
+  const timeline: Record<string, number | string | null>[] = []
+
+  const firstEventAt = events.find((event) => event.created_at)?.created_at ?? null
+  const startedAt = toIso(session.started_at) ?? toIso(session.created_at) ?? firstEventAt
+  const createdAt = toIso(session.created_at) ?? startedAt
+  const lastEventAt = toIso(session.last_event_at) ?? [...events].reverse().find((event) => event.created_at)?.created_at ?? null
+
+  const makeTimelinePoint = (
+    created_at: string | null,
+    timestamp: number,
+    round: number,
+    slot: number | null,
+    points: number | null,
+  ) => {
+    const point: Record<string, number | string | null> = {
+      timestamp,
+      created_at,
+      round,
+      event_slot: slot,
+      event_player: slot === null ? null : playerLabel(slot),
+      event_points: points,
+    }
+    slotList.forEach((playerSlot) => {
+      point[playerKey(playerSlot)] = totals.get(playerSlot) ?? 0
+    })
+    return point
+  }
+
+  if (startedAt) {
+    timeline.push(makeTimelinePoint(startedAt, new Date(startedAt).getTime(), 0, null, null))
+  }
+
+  events.forEach((event) => {
+    if (event.type !== 'points_added') return
+    const slot = slotFromPayload(event.payload)
+    const points = typeof event.payload.points === 'number' ? event.payload.points : null
+    if (slot === null || points === null) return
+    if (!totals.has(slot)) {
+      totals.set(slot, 0)
+      playerRounds.set(slot, 0)
+      playerTopRound.set(slot, null)
+      playerLowestRound.set(slot, null)
+    }
+
+    const totalScore = (totals.get(slot) ?? 0) + points
+    totals.set(slot, totalScore)
+    playerRounds.set(slot, (playerRounds.get(slot) ?? 0) + 1)
+    playerTopRound.set(slot, Math.max(playerTopRound.get(slot) ?? points, points))
+    playerLowestRound.set(slot, Math.min(playerLowestRound.get(slot) ?? points, points))
+
+    scoreEvents.push({
+      created_at: event.created_at,
+      timestamp: event.timestamp,
+      points,
+      slot,
+      total_score: totalScore,
+    })
+    timeline.push(makeTimelinePoint(
+      event.created_at,
+      event.timestamp,
+      scoreEvents.length,
+      slot,
+      points,
+    ))
+  })
+
+  const roundDeltas = scoreEvents
+    .map((event, i) => i === 0 ? null : event.timestamp - scoreEvents[i - 1].timestamp)
+    .filter((value): value is number => typeof value === 'number' && value >= 0)
+  const avgRoundDelta = roundDeltas.length
+    ? roundDeltas.reduce((sum, value) => sum + value, 0) / roundDeltas.length
+    : null
+  const inferredEndedAt = scoreEvents.find((event) => event.total_score >= maxPoints)?.created_at ?? null
+  const endedAt = toIso(session.ended_at)
+    ?? events.find((event) => event.type === 'game_ended')?.created_at
+    ?? events.find((event) => event.type === 'game_reset')?.created_at
+    ?? inferredEndedAt
+  const startedMs = startedAt ? new Date(startedAt).getTime() : null
+  const endedMs = endedAt ? new Date(endedAt).getTime() : null
+  const durationMs = startedMs !== null && endedMs !== null && endedMs >= startedMs
+    ? endedMs - startedMs
+    : null
+
+  const players = [...new Set([...slotList, ...totals.keys()])]
+    .sort((a, b) => a - b)
+    .map((slot) => ({
+      slot,
+      key: playerKey(slot),
+      label: playerLabel(slot),
+      total_score: totals.get(slot) ?? 0,
+      rounds: playerRounds.get(slot) ?? 0,
+      top_round_score: playerTopRound.get(slot),
+      lowest_round_score: playerLowestRound.get(slot),
+    }))
+
+  const sortedScores = [...scoreEvents].sort((a, b) => b.points - a.points)
+
+  return c.json({
+    session_id: sessionId,
+    summary: {
+      player_count: players.length || storedPlayerCount,
+      rounds: scoreEvents.length,
+      max_score: scoreEvents.reduce((max, event) => Math.max(max, event.points), 0),
+      max_points: maxPoints,
+      top_score: players.length ? Math.max(...players.map((player) => player.total_score)) : 0,
+      lowest_score: players.length ? Math.min(...players.map((player) => player.total_score)) : 0,
+      started_at: startedAt,
+      ended_at: endedAt,
+      created_at: createdAt,
+      last_event_at: lastEventAt,
+      duration_ms: durationMs,
+      avg_time_between_rounds_ms: avgRoundDelta,
+      shortest_time_between_rounds_ms: roundDeltas.length ? Math.min(...roundDeltas) : null,
+      longest_time_between_rounds_ms: roundDeltas.length ? Math.max(...roundDeltas) : null,
+    },
+    players,
+    top_rounds: sortedScores.slice(0, 5).map((event) => ({
+      slot: event.slot,
+      label: playerLabel(event.slot),
+      points: event.points,
+      total_score: event.total_score,
+      created_at: event.created_at,
+    })),
+    lowest_rounds: [...scoreEvents]
+      .sort((a, b) => a.points - b.points)
+      .slice(0, 5)
+      .map((event) => ({
+        slot: event.slot,
+        label: playerLabel(event.slot),
+        points: event.points,
+        total_score: event.total_score,
+        created_at: event.created_at,
+      })),
+    timeline,
+    events: events.map((event) => ({
+      id: event.id,
+      type: event.type,
+      created_at: event.created_at,
+      payload: event.payload,
+    })),
   })
 })
