@@ -100,6 +100,11 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
   let counted = 0
   const playerCounts = new Map<number, number>()
   const recent_games: unknown[] = []
+  const sessionEventSummaries = new Map<string, {
+    inferredEndedAt: Date | null
+    maxRoundScore: number
+    sawPoints: boolean
+  }>()
 
   allSessions.forEach((d) => {
     const v = d.data()
@@ -112,12 +117,53 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
     }
   })
 
+  allEvents.forEach((d) => {
+    const v = d.data()
+    if (typeof v.session_id !== 'string') return
+
+    const payload = v.payload && typeof v.payload === 'object'
+      ? v.payload as Record<string, unknown>
+      : {}
+    const createdAt = toDate(v.created_at)
+    const summary = sessionEventSummaries.get(v.session_id) ?? {
+      inferredEndedAt: null,
+      maxRoundScore: 0,
+      sawPoints: false,
+    }
+
+    if (v.type === 'points_added') {
+      summary.sawPoints = true
+      if (typeof payload.points === 'number') {
+        summary.maxRoundScore = Math.max(summary.maxRoundScore, payload.points)
+      }
+
+      const totalScore = typeof payload.total_score === 'number' ? payload.total_score : null
+      const maxPoints = typeof payload.max_points === 'number' ? payload.max_points : 10000
+      if (!summary.inferredEndedAt && createdAt && totalScore !== null && totalScore >= maxPoints) {
+        summary.inferredEndedAt = createdAt
+      }
+    } else if (
+      !summary.inferredEndedAt &&
+      createdAt &&
+      (v.type === 'game_ended' || v.type === 'game_reset')
+    ) {
+      summary.inferredEndedAt = createdAt
+    }
+
+    sessionEventSummaries.set(v.session_id, summary)
+  })
+
   recentSessions.forEach((d) => {
     const v = d.data()
-    const maxScore = typeof v.max_score === 'number' ? v.max_score : 0
+    const eventSummary = sessionEventSummaries.get(d.id)
+    const storedMaxScore = typeof v.max_score === 'number' ? v.max_score : 0
     const maxPoints = typeof v.max_points === 'number' ? v.max_points : 10000
+    const maxScore = eventSummary?.sawPoints ? eventSummary.maxRoundScore : storedMaxScore
     const startedAt = toDate(v.started_at) ?? toDate(v.created_at)
-    const endedAt = toDate(v.ended_at) ?? (maxScore >= maxPoints ? toDate(v.last_event_at) : null)
+    const endedAt =
+      toDate(v.ended_at) ??
+      eventSummary?.inferredEndedAt ??
+      (storedMaxScore >= maxPoints ? toDate(v.last_event_at) : null)
     recent_games.push({
       session_id: d.id,
       player_count: v.player_count ?? 0,

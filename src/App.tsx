@@ -115,7 +115,7 @@ const App = () => {
 
   const onResetGame = () => {
     const maxScore = players.reduce(
-      (m, p) => Math.max(m, p.score.reduce((a, b) => a + b, 0)),
+      (m, p) => Math.max(m, p.score.reduce((roundMax, points) => Math.max(roundMax, points), 0)),
       0,
     )
     track('game_reset', {

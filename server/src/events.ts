@@ -55,7 +55,7 @@ const updateSessionSummary = async (
       const p = typeof payload.points === 'number' ? payload.points : 0
       const totalScore = typeof payload.total_score === 'number' ? payload.total_score : p
       const maxPoints = typeof payload.max_points === 'number' ? payload.max_points : cur.max_points ?? 10000
-      next.max_score = Math.max(cur.max_score ?? 0, totalScore)
+      next.max_score = Math.max(cur.max_score ?? 0, p)
       if (!cur.ended_at && totalScore >= maxPoints) {
         next.ended_at = FieldValue.serverTimestamp()
       }
@@ -64,9 +64,6 @@ const updateSessionSummary = async (
     } else if (type === 'game_ended') {
       next.ended_at = FieldValue.serverTimestamp()
       if (typeof payload.player_count === 'number') next.player_count = payload.player_count
-      if (typeof payload.ending_score === 'number') {
-        next.max_score = Math.max(cur.max_score ?? 0, payload.ending_score)
-      }
       if (typeof payload.max_points === 'number') next.max_points = payload.max_points
     } else if (type === 'game_reset') {
       if (!cur.ended_at) next.ended_at = FieldValue.serverTimestamp()
