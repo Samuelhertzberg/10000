@@ -36,6 +36,7 @@ import {
 
 type EventType = 'game_start' | 'player_added' | 'points_added' | 'game_ended' | 'game_reset'
 type TimelineScale = '15m' | 'hour' | 'day' | 'week'
+type SummaryMode = 'average' | 'median'
 
 type RawEventValue = {
   id: string
@@ -57,6 +58,11 @@ type Stats = {
   avg_players_per_game: number
   avg_rounds_per_game: number
   avg_score_per_round: number
+  avg_game_time_ms: number | null
+  median_players_per_game: number
+  median_rounds_per_game: number
+  median_score_per_round: number
+  median_game_time_ms: number | null
   games_started_last_7_days: number
   event_type_counts: { type: EventType; count: number }[]
   raw_events: RawEventValue[]
@@ -166,6 +172,11 @@ const TIMELINE_SCALES: { value: TimelineScale; label: string }[] = [
   { value: 'hour', label: 'Hour' },
   { value: 'day', label: 'Day' },
   { value: 'week', label: 'Week' },
+]
+
+const SUMMARY_MODES: { value: SummaryMode; label: string }[] = [
+  { value: 'average', label: 'Average' },
+  { value: 'median', label: 'Median' },
 ]
 
 const PLAYER_LINE_COLORS = [
@@ -293,6 +304,7 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
   const [stats, setStats] = useState<Stats | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [summaryMode, setSummaryMode] = useState<SummaryMode>('average')
   const [timelineScale, setTimelineScale] = useState<TimelineScale>('hour')
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false)
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
@@ -431,14 +443,27 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
 
       {stats && (
         <Stack spacing={2.5} sx={{ mt: 2 }}>
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            spacing={1.5}
+            sx={{ alignItems: { xs: 'stretch', sm: 'center' } }}
+          >
+            <Typography variant="h6" sx={{ flex: 1 }}>At a glance</Typography>
+            <ToggleGroup
+              value={summaryMode}
+              onChange={(value) => setSummaryMode(value as SummaryMode)}
+              options={SUMMARY_MODES}
+            />
+          </Stack>
           <Box
             sx={{
               display: 'grid',
               gridTemplateColumns: {
                 xs: '1fr',
                 sm: 'repeat(2, minmax(0, 1fr))',
-                lg: 'repeat(3, minmax(0, 1fr))',
-                xl: 'repeat(6, minmax(0, 1fr))',
+                md: 'repeat(3, minmax(0, 1fr))',
+                lg: 'repeat(4, minmax(0, 1fr))',
+                xl: 'repeat(7, minmax(0, 1fr))',
               },
               gap: 2,
             }}
@@ -446,9 +471,30 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
             <Stat label="Games" value={stats.total_games} />
             <Stat label="Games started in last 7 days" value={stats.games_started_last_7_days} />
             <Stat label="Events" value={stats.total_events} />
-            <Stat label="Avg players" value={stats.avg_players_per_game.toFixed(1)} />
-            <Stat label="Avg rounds" value={stats.avg_rounds_per_game.toFixed(1)} />
-            <Stat label="Avg score per round" value={stats.avg_score_per_round.toFixed(1)} />
+            <Stat
+              label={summaryMode === 'average' ? 'Avg players' : 'Median players'}
+              value={(summaryMode === 'average'
+                ? stats.avg_players_per_game
+                : stats.median_players_per_game).toFixed(1)}
+            />
+            <Stat
+              label={summaryMode === 'average' ? 'Avg rounds' : 'Median rounds'}
+              value={(summaryMode === 'average'
+                ? stats.avg_rounds_per_game
+                : stats.median_rounds_per_game).toFixed(1)}
+            />
+            <Stat
+              label={summaryMode === 'average' ? 'Avg score per round' : 'Median score per round'}
+              value={(summaryMode === 'average'
+                ? stats.avg_score_per_round
+                : stats.median_score_per_round).toFixed(1)}
+            />
+            <Stat
+              label={summaryMode === 'average' ? 'Avg game time' : 'Median game time'}
+              value={formatDuration(summaryMode === 'average'
+                ? stats.avg_game_time_ms
+                : stats.median_game_time_ms)}
+            />
           </Box>
 
           <ChartPanel

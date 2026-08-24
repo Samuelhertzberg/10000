@@ -7,6 +7,7 @@ type EventType = typeof EVENT_TYPES[number]
 
 const RECENT_LIMIT = 50
 const LAST_SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
+const GAME_TARGET_SCORE = 10000
 const EVENT_VALUE_BOUNDS: Record<EventType, {
   min: number
   max: number
@@ -44,6 +45,18 @@ const toDate = (value: unknown): Date | null => {
 }
 
 const toIso = (value: unknown) => toDate(value)?.toISOString() ?? null
+
+const average = (values: number[]) =>
+  values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0
+
+const median = (values: number[]) => {
+  if (values.length === 0) return 0
+  const sorted = [...values].sort((a, b) => a - b)
+  const middle = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle]
+}
 
 const startOfHour = (date: Date) => {
   const d = new Date(date)
@@ -110,11 +123,20 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
   let roundsSum = 0
   let counted = 0
   let gamesStartedLast7Days = 0
-  let positiveRoundScoreSum = 0
-  let positiveRoundCount = 0
   const nowMs = Date.now()
   const sevenDaysAgoMs = nowMs - LAST_SEVEN_DAYS_MS
   const playerCounts = new Map<number, number>()
+  const playerCountValues: number[] = []
+  const roundCountValues: number[] = []
+  const positiveRoundScores: number[] = []
+  const sessionStartTimes = new Map<string, Date>()
+  const scoreEventsBySession = new Map<string, {
+    id: string
+    createdAt: Date
+    points: number | null
+    slot: number | null
+    totalScore: number | null
+  }[]>()
   const recent_games: unknown[] = []
   const sessionEventSummaries = new Map<string, {
     inferredEndedAt: Date | null
@@ -125,11 +147,15 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
   allSessions.forEach((d) => {
     const v = d.data()
     const playerCount = typeof v.player_count === 'number' ? v.player_count : 0
+    const roundCount = typeof v.rounds === 'number' ? v.rounds : 0
     playerSum += playerCount
-    roundsSum += typeof v.rounds === 'number' ? v.rounds : 0
+    roundsSum += roundCount
     counted += 1
+    playerCountValues.push(playerCount)
+    roundCountValues.push(roundCount)
     const startedAt = toDate(v.started_at) ?? toDate(v.created_at)
     const startedAtMs = startedAt?.getTime()
+    if (startedAt) sessionStartTimes.set(d.id, startedAt)
     if (
       startedAtMs !== undefined &&
       startedAtMs >= sevenDaysAgoMs &&
@@ -167,6 +193,25 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
       if (!summary.inferredEndedAt && createdAt && totalScore !== null && totalScore >= maxPoints) {
         summary.inferredEndedAt = createdAt
       }
+
+      const points = typeof payload.points === 'number' && Number.isFinite(payload.points)
+        ? payload.points
+        : null
+      const recordedTotalScore = totalScore !== null && Number.isFinite(totalScore)
+        ? totalScore
+        : null
+      const slot = slotFromPayload(payload)
+      if (createdAt && (recordedTotalScore !== null || (slot !== null && points !== null))) {
+        const scoreEvents = scoreEventsBySession.get(v.session_id) ?? []
+        scoreEvents.push({
+          id: d.id,
+          createdAt,
+          points,
+          slot,
+          totalScore: recordedTotalScore,
+        })
+        scoreEventsBySession.set(v.session_id, scoreEvents)
+      }
     } else if (
       !summary.inferredEndedAt &&
       createdAt &&
@@ -176,6 +221,34 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
     }
 
     sessionEventSummaries.set(v.session_id, summary)
+  })
+
+  const completedGameDurationsMs: number[] = []
+  scoreEventsBySession.forEach((scoreEvents, sessionId) => {
+    const startedAt = sessionStartTimes.get(sessionId)
+    if (!startedAt) return
+
+    const startedAtMs = startedAt.getTime()
+    const playerTotals = new Map<number, number>()
+    const chronologicalEvents = [...scoreEvents]
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id))
+
+    for (const event of chronologicalEvents) {
+      const eventAtMs = event.createdAt.getTime()
+      if (eventAtMs < startedAtMs) continue
+
+      let scoreAfterRound = event.totalScore
+      if (event.slot !== null && event.points !== null) {
+        const calculatedTotal = (playerTotals.get(event.slot) ?? 0) + event.points
+        scoreAfterRound ??= calculatedTotal
+        playerTotals.set(event.slot, scoreAfterRound)
+      }
+
+      if (scoreAfterRound !== null && scoreAfterRound >= GAME_TARGET_SCORE) {
+        completedGameDurationsMs.push(eventAtMs - startedAtMs)
+        break
+      }
+    }
   })
 
   recentSessions.forEach((d) => {
@@ -237,8 +310,7 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
       Number.isFinite(payload.points) &&
       payload.points > 0
     ) {
-      positiveRoundScoreSum += payload.points
-      positiveRoundCount += 1
+      positiveRoundScores.push(payload.points)
     }
 
     if (createdAt) {
@@ -289,7 +361,12 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
     total_events: totalEventsAgg.data().count,
     avg_players_per_game: counted ? playerSum / counted : 0,
     avg_rounds_per_game: counted ? roundsSum / counted : 0,
-    avg_score_per_round: positiveRoundCount ? positiveRoundScoreSum / positiveRoundCount : 0,
+    avg_score_per_round: average(positiveRoundScores),
+    avg_game_time_ms: completedGameDurationsMs.length ? average(completedGameDurationsMs) : null,
+    median_players_per_game: median(playerCountValues),
+    median_rounds_per_game: median(roundCountValues),
+    median_score_per_round: median(positiveRoundScores),
+    median_game_time_ms: completedGameDurationsMs.length ? median(completedGameDurationsMs) : null,
     games_started_last_7_days: gamesStartedLast7Days,
     event_type_counts,
     events_over_time: [...eventsByHour.values()].sort((a, b) => a.hour.localeCompare(b.hour)),
