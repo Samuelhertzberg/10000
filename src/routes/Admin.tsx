@@ -607,7 +607,7 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
 
             <ChartPanel
               title="Scores Per Round"
-              subtitle="Positive round scores by frequency (logarithmic count scale)"
+              subtitle="Positive round scores by frequency (logarithmic score scale)"
               height={280}
             >
               {scoreDistribution.length > 0 ? (
@@ -616,15 +616,15 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis
                       dataKey="score"
-                      interval="preserveStartEnd"
-                      minTickGap={24}
-                      tickFormatter={(value) => Number(value).toLocaleString()}
-                    />
-                    <YAxis
-                      allowDecimals={false}
-                      domain={[1, (dataMax: number) => Math.max(10, dataMax)]}
+                      domain={[
+                        (dataMin: number) => Math.max(1, dataMin * 0.8),
+                        (dataMax: number) => dataMax * 1.2,
+                      ]}
                       scale="log"
+                      tickFormatter={(value) => Number(value).toLocaleString()}
+                      type="number"
                     />
+                    <YAxis allowDecimals={false} />
                     <Tooltip
                       formatter={(value) => [value, 'Rounds']}
                       labelFormatter={(value) => `${Number(value).toLocaleString()} points`}
@@ -632,6 +632,7 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
                     <Bar
                       dataKey="count"
                       fill={EVENT_COLORS.points_added}
+                      maxBarSize={48}
                       minPointSize={3}
                     />
                   </BarChart>
