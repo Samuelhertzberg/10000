@@ -6,6 +6,7 @@ const EVENT_TYPES = ['game_start', 'player_added', 'points_added', 'game_ended',
 type EventType = typeof EVENT_TYPES[number]
 
 const RECENT_LIMIT = 50
+const LAST_SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 const EVENT_VALUE_BOUNDS: Record<EventType, {
   min: number
   max: number
@@ -108,6 +109,11 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
   let playerSum = 0
   let roundsSum = 0
   let counted = 0
+  let gamesStartedLast7Days = 0
+  let positiveRoundScoreSum = 0
+  let positiveRoundCount = 0
+  const nowMs = Date.now()
+  const sevenDaysAgoMs = nowMs - LAST_SEVEN_DAYS_MS
   const playerCounts = new Map<number, number>()
   const recent_games: unknown[] = []
   const sessionEventSummaries = new Map<string, {
@@ -122,6 +128,15 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
     playerSum += playerCount
     roundsSum += typeof v.rounds === 'number' ? v.rounds : 0
     counted += 1
+    const startedAt = toDate(v.started_at) ?? toDate(v.created_at)
+    const startedAtMs = startedAt?.getTime()
+    if (
+      startedAtMs !== undefined &&
+      startedAtMs >= sevenDaysAgoMs &&
+      startedAtMs <= nowMs
+    ) {
+      gamesStartedLast7Days += 1
+    }
     if (playerCount > 0) {
       playerCounts.set(playerCount, (playerCounts.get(playerCount) ?? 0) + 1)
     }
@@ -216,6 +231,16 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
       ? v.payload as Record<string, unknown>
       : {}
 
+    if (
+      v.type === 'points_added' &&
+      typeof payload.points === 'number' &&
+      Number.isFinite(payload.points) &&
+      payload.points > 0
+    ) {
+      positiveRoundScoreSum += payload.points
+      positiveRoundCount += 1
+    }
+
     if (createdAt) {
       const hour = startOfHour(createdAt)
       const bucket = eventsByHour.get(hour) ?? {
@@ -264,6 +289,8 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
     total_events: totalEventsAgg.data().count,
     avg_players_per_game: counted ? playerSum / counted : 0,
     avg_rounds_per_game: counted ? roundsSum / counted : 0,
+    avg_score_per_round: positiveRoundCount ? positiveRoundScoreSum / positiveRoundCount : 0,
+    games_started_last_7_days: gamesStartedLast7Days,
     event_type_counts,
     events_over_time: [...eventsByHour.values()].sort((a, b) => a.hour.localeCompare(b.hour)),
     events_by_hour_of_day: hourOfDay,

@@ -56,6 +56,8 @@ type Stats = {
   total_events: number
   avg_players_per_game: number
   avg_rounds_per_game: number
+  avg_score_per_round: number
+  games_started_last_7_days: number
   event_type_counts: { type: EventType; count: number }[]
   raw_events: RawEventValue[]
   events_by_hour_of_day: ({
@@ -435,15 +437,18 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
               gridTemplateColumns: {
                 xs: '1fr',
                 sm: 'repeat(2, minmax(0, 1fr))',
-                lg: 'repeat(4, minmax(0, 1fr))',
+                lg: 'repeat(3, minmax(0, 1fr))',
+                xl: 'repeat(6, minmax(0, 1fr))',
               },
               gap: 2,
             }}
           >
             <Stat label="Games" value={stats.total_games} />
+            <Stat label="Games started in last 7 days" value={stats.games_started_last_7_days} />
             <Stat label="Events" value={stats.total_events} />
             <Stat label="Avg players" value={stats.avg_players_per_game.toFixed(1)} />
             <Stat label="Avg rounds" value={stats.avg_rounds_per_game.toFixed(1)} />
+            <Stat label="Avg score per round" value={stats.avg_score_per_round.toFixed(1)} />
           </Box>
 
           <ChartPanel
