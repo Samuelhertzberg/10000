@@ -379,6 +379,17 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
     [stats, timelineScale],
   )
 
+  const scoreDistribution = useMemo(() => {
+    const counts = new Map<number, number>()
+    stats?.raw_events.forEach((event) => {
+      if (event.type !== 'points_added' || !Number.isFinite(event.value) || event.value <= 0) return
+      counts.set(event.value, (counts.get(event.value) ?? 0) + 1)
+    })
+    return [...counts.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([score, count]) => ({ score, count }))
+  }, [stats])
+
   const gameStartCount = stats?.event_type_counts
     .find((event) => event.type === 'game_start')
     ?.count ?? 0
@@ -462,8 +473,7 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
                 xs: '1fr',
                 sm: 'repeat(2, minmax(0, 1fr))',
                 md: 'repeat(3, minmax(0, 1fr))',
-                lg: 'repeat(4, minmax(0, 1fr))',
-                xl: 'repeat(7, minmax(0, 1fr))',
+                xl: 'repeat(6, minmax(0, 1fr))',
               },
               gap: 2,
             }}
@@ -482,12 +492,6 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
               value={(summaryMode === 'average'
                 ? stats.avg_rounds_per_game
                 : stats.median_rounds_per_game).toFixed(1)}
-            />
-            <Stat
-              label={summaryMode === 'average' ? 'Avg score per round' : 'Median score per round'}
-              value={(summaryMode === 'average'
-                ? stats.avg_score_per_round
-                : stats.median_score_per_round).toFixed(1)}
             />
             <Stat
               label={summaryMode === 'average' ? 'Avg game time' : 'Median game time'}
@@ -599,6 +603,42 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
                   <Bar dataKey="count" fill={EVENT_COLORS.player_added} />
                 </BarChart>
               </ResponsiveContainer>
+            </ChartPanel>
+
+            <ChartPanel
+              title="Scores Per Round"
+              subtitle="Positive round scores by frequency (logarithmic count scale)"
+              height={280}
+            >
+              {scoreDistribution.length > 0 ? (
+                <ResponsiveContainer>
+                  <BarChart data={scoreDistribution}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="score"
+                      interval="preserveStartEnd"
+                      minTickGap={24}
+                      tickFormatter={(value) => Number(value).toLocaleString()}
+                    />
+                    <YAxis
+                      allowDecimals={false}
+                      domain={[1, (dataMax: number) => Math.max(10, dataMax)]}
+                      scale="log"
+                    />
+                    <Tooltip
+                      formatter={(value) => [value, 'Rounds']}
+                      labelFormatter={(value) => `${Number(value).toLocaleString()} points`}
+                    />
+                    <Bar
+                      dataKey="count"
+                      fill={EVENT_COLORS.points_added}
+                      minPointSize={3}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyPanel>No positive score events yet.</EmptyPanel>
+              )}
             </ChartPanel>
           </Box>
 
