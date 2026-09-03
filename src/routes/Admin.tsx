@@ -41,6 +41,7 @@ import {
 type EventType = 'game_start' | 'player_added' | 'points_added' | 'game_ended' | 'game_reset'
 type TimelineScale = '15m' | 'hour' | 'day' | 'week'
 type SummaryMode = 'average' | 'median'
+type HeatmapColorMode = 'round_count' | 'column_percentage'
 
 type RawEventValue = {
   id: string
@@ -68,6 +69,12 @@ type BankedPointsHeatmapData = {
 }
 
 type HeatmapRange = [number, number]
+
+type BankedPointsHeatmapDisplayCell = BankedPointsHeatmapCell & {
+  bin_size: number
+  column_percentage: number
+  fill: string
+}
 
 type Stats = {
   total_games: number
@@ -197,6 +204,11 @@ const SUMMARY_MODES: { value: SummaryMode; label: string }[] = [
   { value: 'median', label: 'Median' },
 ]
 
+const HEATMAP_COLOR_MODES: { value: HeatmapColorMode; label: string }[] = [
+  { value: 'round_count', label: 'Round count' },
+  { value: 'column_percentage', label: 'Column %' },
+]
+
 const PLAYER_LINE_COLORS = [
   '#1976d2',
   '#2e7d32',
@@ -215,8 +227,10 @@ const HEATMAP_COLOR_STOPS = [
   [215, 48, 31],
 ] as const
 
-const heatmapColor = (count: number, maxCount: number) => {
-  const ratio = maxCount <= 1 ? 0 : Math.max(0, Math.min(1, (count - 1) / (maxCount - 1)))
+const heatmapColor = (value: number, minimum: number, maximum: number) => {
+  const ratio = maximum <= minimum
+    ? 0
+    : Math.max(0, Math.min(1, (value - minimum) / (maximum - minimum)))
   const scaled = ratio * (HEATMAP_COLOR_STOPS.length - 1)
   const lowerIndex = Math.floor(scaled)
   const upperIndex = Math.min(HEATMAP_COLOR_STOPS.length - 1, lowerIndex + 1)
@@ -232,6 +246,9 @@ const heatmapColor = (count: number, maxCount: number) => {
 const formatPointBin = (value: number, binSize: number) =>
   `${value.toLocaleString()}–${(value + binSize - 1).toLocaleString()}`
 
+const formatPercentage = (value: number) =>
+  `${value.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`
+
 const clampHeatmapRange = (
   selectedRange: HeatmapRange | null,
   availableRange: HeatmapRange,
@@ -244,7 +261,7 @@ const clampHeatmapRange = (
 
 type HeatmapShapeProps = {
   fill?: string
-  payload?: BankedPointsHeatmapCell & { bin_size: number; fill: string }
+  payload?: BankedPointsHeatmapDisplayCell
   xAxis?: { scale: (value: number) => number }
   yAxis?: { scale: (value: number) => number }
 }
@@ -273,7 +290,7 @@ const HeatmapCellShape = (rawProps: unknown) => {
       y={y}
     >
       <title>
-        {`Points already earned ${formatPointBin(payload.current_score, payload.bin_size)}; points accepted ${formatPointBin(payload.accepted_points, payload.bin_size)}; ${payload.round_count.toLocaleString()} rounds`}
+        {`Points already earned ${formatPointBin(payload.current_score, payload.bin_size)}; points accepted ${formatPointBin(payload.accepted_points, payload.bin_size)}; ${payload.round_count.toLocaleString()} rounds; ${formatPercentage(payload.column_percentage)} of this column`}
       </title>
     </rect>
   )
@@ -286,7 +303,7 @@ const HeatmapTooltip = ({
 }: {
   active?: boolean
   binSize: number
-  payload?: { payload?: BankedPointsHeatmapCell }[]
+  payload?: { payload?: BankedPointsHeatmapDisplayCell }[]
 }) => {
   const cell = payload?.[0]?.payload
   if (!active || !cell) return null
@@ -302,42 +319,57 @@ const HeatmapTooltip = ({
       <Typography variant="body2" fontWeight={600}>
         Rounds: {cell.round_count.toLocaleString()}
       </Typography>
+      <Typography variant="body2" fontWeight={600}>
+        Column share: {formatPercentage(cell.column_percentage)}
+      </Typography>
     </Paper>
   )
 }
 
-const HeatmapLegend = ({ maxCount }: { maxCount: number }) => (
-  <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', justifyContent: 'center' }}>
-    <Typography
-      variant="caption"
-      color="text.secondary"
-      sx={{ display: { xs: 'none', sm: 'block' }, whiteSpace: 'nowrap' }}
-    >
-      Fewer rounds
-    </Typography>
-    <Box sx={{ width: 220, maxWidth: { xs: '80%', sm: '45vw' } }}>
-      <Box
-        sx={{
-          background: 'linear-gradient(90deg, #fff7ec 0%, #ffeda0 33%, #feb24c 67%, #d7301f 100%)',
-          border: 1,
-          borderColor: 'divider',
-          height: 12,
-        }}
-      />
-      <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
-        <Typography variant="caption">1</Typography>
-        <Typography variant="caption">{maxCount.toLocaleString()}</Typography>
-      </Stack>
-    </Box>
-    <Typography
-      variant="caption"
-      color="text.secondary"
-      sx={{ display: { xs: 'none', sm: 'block' }, whiteSpace: 'nowrap' }}
-    >
-      More rounds
-    </Typography>
-  </Stack>
-)
+const HeatmapLegend = ({
+  colorMode,
+  maxCount,
+}: {
+  colorMode: HeatmapColorMode
+  maxCount: number
+}) => {
+  const showsPercentage = colorMode === 'column_percentage'
+
+  return (
+    <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', justifyContent: 'center' }}>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ display: { xs: 'none', sm: 'block' }, whiteSpace: 'nowrap' }}
+      >
+        {showsPercentage ? 'Lower share' : 'Fewer rounds'}
+      </Typography>
+      <Box sx={{ width: 220, maxWidth: { xs: '80%', sm: '45vw' } }}>
+        <Box
+          sx={{
+            background: 'linear-gradient(90deg, #fff7ec 0%, #ffeda0 33%, #feb24c 67%, #d7301f 100%)',
+            border: 1,
+            borderColor: 'divider',
+            height: 12,
+          }}
+        />
+        <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
+          <Typography variant="caption">{showsPercentage ? '0%' : '1'}</Typography>
+          <Typography variant="caption">
+            {showsPercentage ? '100%' : maxCount.toLocaleString()}
+          </Typography>
+        </Stack>
+      </Box>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ display: { xs: 'none', sm: 'block' }, whiteSpace: 'nowrap' }}
+      >
+        {showsPercentage ? 'Higher share' : 'More rounds'}
+      </Typography>
+    </Stack>
+  )
+}
 
 const HeatmapRangeFilter = ({
   availableRange,
@@ -491,6 +523,7 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
   const [loading, setLoading] = useState(false)
   const [summaryMode, setSummaryMode] = useState<SummaryMode>('average')
   const [timelineScale, setTimelineScale] = useState<TimelineScale>('hour')
+  const [heatmapColorMode, setHeatmapColorMode] = useState<HeatmapColorMode>('round_count')
   const [currentScoreRange, setCurrentScoreRange] = useState<HeatmapRange | null>(null)
   const [acceptedPointsRange, setAcceptedPointsRange] = useState<HeatmapRange | null>(null)
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false)
@@ -607,6 +640,10 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
       cell.accepted_points >= selectedAcceptedPointsRange[0] &&
       cell.accepted_points <= selectedAcceptedPointsRange[1],
     )
+    const roundCountByCurrentScore = cells.reduce((totals, cell) => {
+      totals.set(cell.current_score, (totals.get(cell.current_score) ?? 0) + cell.round_count)
+      return totals
+    }, new Map<number, number>())
     const maxCount = cells.reduce((max, cell) => Math.max(max, cell.round_count), 0)
     const xBinCount = Math.floor(
       (selectedCurrentScoreRange[1] - selectedCurrentScoreRange[0]) / binSize,
@@ -619,11 +656,25 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
       availableAcceptedPointsRange,
       availableCurrentScoreRange,
       binSize,
-      cells: cells.map((cell) => ({
-        ...cell,
-        bin_size: binSize,
-        fill: heatmapColor(cell.round_count, maxCount),
-      })),
+      cells: cells.map((cell) => {
+        const columnRoundCount = roundCountByCurrentScore.get(cell.current_score) ?? 0
+        const columnPercentage = columnRoundCount > 0
+          ? (cell.round_count / columnRoundCount) * 100
+          : 0
+        const colorValue = heatmapColorMode === 'column_percentage'
+          ? columnPercentage
+          : cell.round_count
+        return {
+          ...cell,
+          bin_size: binSize,
+          column_percentage: columnPercentage,
+          fill: heatmapColor(
+            colorValue,
+            heatmapColorMode === 'column_percentage' ? 0 : 1,
+            heatmapColorMode === 'column_percentage' ? 100 : maxCount,
+          ),
+        }
+      }),
       chartHeight: Math.max(360, yBinCount * 7 + 105),
       chartMinWidth: Math.max(720, xBinCount * 7 + 120),
       maxCount,
@@ -640,7 +691,7 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
         selectedAcceptedPointsRange[1] + binSize,
       ] as HeatmapRange,
     }
-  }, [acceptedPointsRange, currentScoreRange, stats])
+  }, [acceptedPointsRange, currentScoreRange, heatmapColorMode, stats])
 
   const heatmapHasFilters =
     bankedPointsHeatmap.selectedCurrentScoreRange[0] !==
@@ -919,46 +970,58 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
 
           <ChartPanel
             title="Points Accepted by Points Already Earned"
-            subtitle={`${bankedPointsHeatmap.totalRounds.toLocaleString()} of ${bankedPointsHeatmap.totalUnfilteredRounds.toLocaleString()} banked rounds in ${bankedPointsHeatmap.binSize.toLocaleString()}-point bins. Darker cells occurred more often.`}
+            subtitle={heatmapColorMode === 'column_percentage'
+              ? `${bankedPointsHeatmap.totalRounds.toLocaleString()} of ${bankedPointsHeatmap.totalUnfilteredRounds.toLocaleString()} banked rounds in ${bankedPointsHeatmap.binSize.toLocaleString()}-point bins. Each visible column totals 100%.`
+              : `${bankedPointsHeatmap.totalRounds.toLocaleString()} of ${bankedPointsHeatmap.totalUnfilteredRounds.toLocaleString()} banked rounds in ${bankedPointsHeatmap.binSize.toLocaleString()}-point bins. Darker cells occurred more often.`}
             height={bankedPointsHeatmap.chartHeight + 54}
             actions={(
-              <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                spacing={2}
-                sx={{ alignItems: { xs: 'stretch', sm: 'center' } }}
-              >
-                <HeatmapRangeFilter
-                  availableRange={bankedPointsHeatmap.availableCurrentScoreRange}
-                  binSize={bankedPointsHeatmap.binSize}
-                  label="Points already earned"
-                  onChange={(range) => setHeatmapRange(
-                    range,
-                    bankedPointsHeatmap.availableCurrentScoreRange,
-                    setCurrentScoreRange,
-                  )}
-                  value={bankedPointsHeatmap.selectedCurrentScoreRange}
-                />
-                <HeatmapRangeFilter
-                  availableRange={bankedPointsHeatmap.availableAcceptedPointsRange}
-                  binSize={bankedPointsHeatmap.binSize}
-                  label="Points accepted"
-                  onChange={(range) => setHeatmapRange(
-                    range,
-                    bankedPointsHeatmap.availableAcceptedPointsRange,
-                    setAcceptedPointsRange,
-                  )}
-                  value={bankedPointsHeatmap.selectedAcceptedPointsRange}
-                />
-                <Button
-                  disabled={!heatmapHasFilters}
-                  onClick={() => {
-                    setCurrentScoreRange(null)
-                    setAcceptedPointsRange(null)
-                  }}
-                  size="small"
+              <Stack spacing={1.5} sx={{ alignItems: { xs: 'stretch', md: 'flex-end' } }}>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  <Typography variant="caption" color="text.secondary">Cell color</Typography>
+                  <ToggleGroup
+                    value={heatmapColorMode}
+                    onChange={(value) => setHeatmapColorMode(value as HeatmapColorMode)}
+                    options={HEATMAP_COLOR_MODES}
+                  />
+                </Stack>
+                <Stack
+                  direction={{ xs: 'column', sm: 'row' }}
+                  spacing={2}
+                  sx={{ alignItems: { xs: 'stretch', sm: 'center' } }}
                 >
-                  Reset
-                </Button>
+                  <HeatmapRangeFilter
+                    availableRange={bankedPointsHeatmap.availableCurrentScoreRange}
+                    binSize={bankedPointsHeatmap.binSize}
+                    label="Points already earned"
+                    onChange={(range) => setHeatmapRange(
+                      range,
+                      bankedPointsHeatmap.availableCurrentScoreRange,
+                      setCurrentScoreRange,
+                    )}
+                    value={bankedPointsHeatmap.selectedCurrentScoreRange}
+                  />
+                  <HeatmapRangeFilter
+                    availableRange={bankedPointsHeatmap.availableAcceptedPointsRange}
+                    binSize={bankedPointsHeatmap.binSize}
+                    label="Points accepted"
+                    onChange={(range) => setHeatmapRange(
+                      range,
+                      bankedPointsHeatmap.availableAcceptedPointsRange,
+                      setAcceptedPointsRange,
+                    )}
+                    value={bankedPointsHeatmap.selectedAcceptedPointsRange}
+                  />
+                  <Button
+                    disabled={!heatmapHasFilters}
+                    onClick={() => {
+                      setCurrentScoreRange(null)
+                      setAcceptedPointsRange(null)
+                    }}
+                    size="small"
+                  >
+                    Reset
+                  </Button>
+                </Stack>
               </Stack>
             )}
           >
@@ -1012,7 +1075,10 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
                     </ResponsiveContainer>
                   </Box>
                 </Box>
-                <HeatmapLegend maxCount={bankedPointsHeatmap.maxCount} />
+                <HeatmapLegend
+                  colorMode={heatmapColorMode}
+                  maxCount={bankedPointsHeatmap.maxCount}
+                />
               </Stack>
             ) : (
               <EmptyPanel>No banked rounds match these filters.</EmptyPanel>
