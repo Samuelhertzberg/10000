@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogTitle,
   Paper,
+  Slider,
   Stack,
   Table,
   TableBody,
@@ -65,6 +66,8 @@ type BankedPointsHeatmapData = {
   bin_size: number
   cells: BankedPointsHeatmapCell[]
 }
+
+type HeatmapRange = [number, number]
 
 type Stats = {
   total_games: number
@@ -229,6 +232,16 @@ const heatmapColor = (count: number, maxCount: number) => {
 const formatPointBin = (value: number, binSize: number) =>
   `${value.toLocaleString()}–${(value + binSize - 1).toLocaleString()}`
 
+const clampHeatmapRange = (
+  selectedRange: HeatmapRange | null,
+  availableRange: HeatmapRange,
+): HeatmapRange => {
+  if (!selectedRange) return availableRange
+  const minimum = Math.max(availableRange[0], Math.min(selectedRange[0], availableRange[1]))
+  const maximum = Math.max(minimum, Math.min(selectedRange[1], availableRange[1]))
+  return [minimum, maximum]
+}
+
 type HeatmapShapeProps = {
   fill?: string
   payload?: BankedPointsHeatmapCell & { bin_size: number; fill: string }
@@ -260,7 +273,7 @@ const HeatmapCellShape = (rawProps: unknown) => {
       y={y}
     >
       <title>
-        {`Current score ${formatPointBin(payload.current_score, payload.bin_size)}; accepted points ${formatPointBin(payload.accepted_points, payload.bin_size)}; ${payload.round_count.toLocaleString()} rounds`}
+        {`Points already earned ${formatPointBin(payload.current_score, payload.bin_size)}; points accepted ${formatPointBin(payload.accepted_points, payload.bin_size)}; ${payload.round_count.toLocaleString()} rounds`}
       </title>
     </rect>
   )
@@ -281,10 +294,10 @@ const HeatmapTooltip = ({
   return (
     <Paper sx={{ p: 1.25 }} elevation={4}>
       <Typography variant="body2">
-        Current score: {formatPointBin(cell.current_score, binSize)}
+        Points already earned: {formatPointBin(cell.current_score, binSize)}
       </Typography>
       <Typography variant="body2">
-        Accepted points: {formatPointBin(cell.accepted_points, binSize)}
+        Points accepted: {formatPointBin(cell.accepted_points, binSize)}
       </Typography>
       <Typography variant="body2" fontWeight={600}>
         Rounds: {cell.round_count.toLocaleString()}
@@ -325,6 +338,42 @@ const HeatmapLegend = ({ maxCount }: { maxCount: number }) => (
     </Typography>
   </Stack>
 )
+
+const HeatmapRangeFilter = ({
+  availableRange,
+  binSize,
+  label,
+  onChange,
+  value,
+}: {
+  availableRange: HeatmapRange
+  binSize: number
+  label: string
+  onChange: (range: HeatmapRange) => void
+  value: HeatmapRange
+}) => {
+  const hasRange = availableRange[0] < availableRange[1]
+
+  return (
+    <Box sx={{ minWidth: 180, width: { xs: '100%', sm: 220 } }}>
+      <Typography variant="caption" color="text.secondary">
+        {label}: {value[0].toLocaleString()}–{(value[1] + binSize - 1).toLocaleString()}
+      </Typography>
+      <Slider
+        aria-label={label}
+        disabled={!hasRange}
+        getAriaLabel={(index) => `${index === 0 ? 'Minimum' : 'Maximum'} ${label.toLowerCase()}`}
+        max={hasRange ? availableRange[1] : availableRange[0] + binSize}
+        min={availableRange[0]}
+        onChange={(_event, nextValue) => onChange(nextValue as HeatmapRange)}
+        step={binSize}
+        value={value}
+        valueLabelDisplay="auto"
+        valueLabelFormat={(pointValue) => pointValue.toLocaleString()}
+      />
+    </Box>
+  )
+}
 
 const authHeaders = (credential?: string): HeadersInit =>
   credential ? { Authorization: `Bearer ${credential}` } : {}
@@ -442,6 +491,8 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
   const [loading, setLoading] = useState(false)
   const [summaryMode, setSummaryMode] = useState<SummaryMode>('average')
   const [timelineScale, setTimelineScale] = useState<TimelineScale>('hour')
+  const [currentScoreRange, setCurrentScoreRange] = useState<HeatmapRange | null>(null)
+  const [acceptedPointsRange, setAcceptedPointsRange] = useState<HeatmapRange | null>(null)
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false)
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null)
@@ -528,15 +579,45 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
 
   const bankedPointsHeatmap = useMemo(() => {
     const source = stats?.banked_points_by_current_score
-    const cells = source?.cells ?? []
+    const sourceCells = source?.cells ?? []
     const binSize = source?.bin_size ?? 50
+    const availableCurrentScoreRange: HeatmapRange = sourceCells.length > 0
+      ? [
+          sourceCells.reduce((min, cell) => Math.min(min, cell.current_score), Infinity),
+          sourceCells.reduce((max, cell) => Math.max(max, cell.current_score), -Infinity),
+        ]
+      : [0, 0]
+    const availableAcceptedPointsRange: HeatmapRange = sourceCells.length > 0
+      ? [
+          sourceCells.reduce((min, cell) => Math.min(min, cell.accepted_points), Infinity),
+          sourceCells.reduce((max, cell) => Math.max(max, cell.accepted_points), -Infinity),
+        ]
+      : [0, 0]
+    const selectedCurrentScoreRange = clampHeatmapRange(
+      currentScoreRange,
+      availableCurrentScoreRange,
+    )
+    const selectedAcceptedPointsRange = clampHeatmapRange(
+      acceptedPointsRange,
+      availableAcceptedPointsRange,
+    )
+    const cells = sourceCells.filter((cell) =>
+      cell.current_score >= selectedCurrentScoreRange[0] &&
+      cell.current_score <= selectedCurrentScoreRange[1] &&
+      cell.accepted_points >= selectedAcceptedPointsRange[0] &&
+      cell.accepted_points <= selectedAcceptedPointsRange[1],
+    )
     const maxCount = cells.reduce((max, cell) => Math.max(max, cell.round_count), 0)
-    const maxCurrentScore = cells.reduce((max, cell) => Math.max(max, cell.current_score), 0)
-    const maxAcceptedPoints = cells.reduce((max, cell) => Math.max(max, cell.accepted_points), 0)
-    const xBinCount = Math.floor(maxCurrentScore / binSize) + 1
-    const yBinCount = Math.floor(maxAcceptedPoints / binSize) + 1
+    const xBinCount = Math.floor(
+      (selectedCurrentScoreRange[1] - selectedCurrentScoreRange[0]) / binSize,
+    ) + 1
+    const yBinCount = Math.floor(
+      (selectedAcceptedPointsRange[1] - selectedAcceptedPointsRange[0]) / binSize,
+    ) + 1
 
     return {
+      availableAcceptedPointsRange,
+      availableCurrentScoreRange,
       binSize,
       cells: cells.map((cell) => ({
         ...cell,
@@ -546,11 +627,42 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
       chartHeight: Math.max(360, yBinCount * 7 + 105),
       chartMinWidth: Math.max(720, xBinCount * 7 + 120),
       maxCount,
+      selectedAcceptedPointsRange,
+      selectedCurrentScoreRange,
       totalRounds: cells.reduce((sum, cell) => sum + cell.round_count, 0),
-      xDomainMax: maxCurrentScore + binSize,
-      yDomainMax: maxAcceptedPoints + binSize,
+      totalUnfilteredRounds: sourceCells.reduce((sum, cell) => sum + cell.round_count, 0),
+      xDomain: [
+        selectedCurrentScoreRange[0],
+        selectedCurrentScoreRange[1] + binSize,
+      ] as HeatmapRange,
+      yDomain: [
+        selectedAcceptedPointsRange[0],
+        selectedAcceptedPointsRange[1] + binSize,
+      ] as HeatmapRange,
     }
-  }, [stats])
+  }, [acceptedPointsRange, currentScoreRange, stats])
+
+  const heatmapHasFilters =
+    bankedPointsHeatmap.selectedCurrentScoreRange[0] !==
+      bankedPointsHeatmap.availableCurrentScoreRange[0] ||
+    bankedPointsHeatmap.selectedCurrentScoreRange[1] !==
+      bankedPointsHeatmap.availableCurrentScoreRange[1] ||
+    bankedPointsHeatmap.selectedAcceptedPointsRange[0] !==
+      bankedPointsHeatmap.availableAcceptedPointsRange[0] ||
+    bankedPointsHeatmap.selectedAcceptedPointsRange[1] !==
+      bankedPointsHeatmap.availableAcceptedPointsRange[1]
+
+  const setHeatmapRange = (
+    range: HeatmapRange,
+    availableRange: HeatmapRange,
+    setRange: (range: HeatmapRange | null) => void,
+  ) => {
+    setRange(
+      range[0] === availableRange[0] && range[1] === availableRange[1]
+        ? null
+        : range,
+    )
+  }
 
   const gameStartCount = stats?.event_type_counts
     .find((event) => event.type === 'game_start')
@@ -806,11 +918,53 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
           </Box>
 
           <ChartPanel
-            title="Accepted Points by Current Score"
-            subtitle={`${bankedPointsHeatmap.totalRounds.toLocaleString()} banked rounds in ${bankedPointsHeatmap.binSize.toLocaleString()}-point bins. Darker cells occurred more often.`}
+            title="Points Accepted by Points Already Earned"
+            subtitle={`${bankedPointsHeatmap.totalRounds.toLocaleString()} of ${bankedPointsHeatmap.totalUnfilteredRounds.toLocaleString()} banked rounds in ${bankedPointsHeatmap.binSize.toLocaleString()}-point bins. Darker cells occurred more often.`}
             height={bankedPointsHeatmap.chartHeight + 54}
+            actions={(
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={2}
+                sx={{ alignItems: { xs: 'stretch', sm: 'center' } }}
+              >
+                <HeatmapRangeFilter
+                  availableRange={bankedPointsHeatmap.availableCurrentScoreRange}
+                  binSize={bankedPointsHeatmap.binSize}
+                  label="Points already earned"
+                  onChange={(range) => setHeatmapRange(
+                    range,
+                    bankedPointsHeatmap.availableCurrentScoreRange,
+                    setCurrentScoreRange,
+                  )}
+                  value={bankedPointsHeatmap.selectedCurrentScoreRange}
+                />
+                <HeatmapRangeFilter
+                  availableRange={bankedPointsHeatmap.availableAcceptedPointsRange}
+                  binSize={bankedPointsHeatmap.binSize}
+                  label="Points accepted"
+                  onChange={(range) => setHeatmapRange(
+                    range,
+                    bankedPointsHeatmap.availableAcceptedPointsRange,
+                    setAcceptedPointsRange,
+                  )}
+                  value={bankedPointsHeatmap.selectedAcceptedPointsRange}
+                />
+                <Button
+                  disabled={!heatmapHasFilters}
+                  onClick={() => {
+                    setCurrentScoreRange(null)
+                    setAcceptedPointsRange(null)
+                  }}
+                  size="small"
+                >
+                  Reset
+                </Button>
+              </Stack>
+            )}
           >
-            {bankedPointsHeatmap.cells.length > 0 ? (
+            {bankedPointsHeatmap.totalUnfilteredRounds === 0 ? (
+              <EmptyPanel>No positive banked rounds with current score data yet.</EmptyPanel>
+            ) : bankedPointsHeatmap.cells.length > 0 ? (
               <Stack spacing={1.25} sx={{ height: '100%' }}>
                 <Box sx={{ flex: 1, minHeight: 0, overflowX: 'auto', overflowY: 'hidden' }}>
                   <Box sx={{ height: '100%', minWidth: bankedPointsHeatmap.chartMinWidth }}>
@@ -820,12 +974,12 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
                         <XAxis
                           allowDataOverflow
                           dataKey="current_score"
-                          domain={[0, bankedPointsHeatmap.xDomainMax]}
-                          name="Current score"
+                          domain={bankedPointsHeatmap.xDomain}
+                          name="Points already earned"
                           tickFormatter={(value) => Number(value).toLocaleString()}
                           type="number"
                           label={{
-                            value: 'Current score before banking',
+                            value: 'Points already earned',
                             position: 'insideBottom',
                             offset: -24,
                           }}
@@ -833,12 +987,12 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
                         <YAxis
                           allowDataOverflow
                           dataKey="accepted_points"
-                          domain={[0, bankedPointsHeatmap.yDomainMax]}
-                          name="Accepted points"
+                          domain={bankedPointsHeatmap.yDomain}
+                          name="Points accepted"
                           tickFormatter={(value) => Number(value).toLocaleString()}
                           type="number"
                           label={{
-                            value: 'Accepted points',
+                            value: 'Points accepted',
                             angle: -90,
                             position: 'insideLeft',
                             offset: -20,
@@ -861,7 +1015,7 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
                 <HeatmapLegend maxCount={bankedPointsHeatmap.maxCount} />
               </Stack>
             ) : (
-              <EmptyPanel>No positive banked rounds with current score data yet.</EmptyPanel>
+              <EmptyPanel>No banked rounds match these filters.</EmptyPanel>
             )}
           </ChartPanel>
 
