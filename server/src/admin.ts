@@ -1,6 +1,10 @@
 import { Hono } from 'hono'
 import { db } from './firestore.js'
 import { requireAdmin } from './auth.js'
+import {
+  BankedPointsScoreEvent,
+  buildBankedPointsHeatmap,
+} from './bankedPointsHeatmap.js'
 
 const EVENT_TYPES = ['game_start', 'player_added', 'points_added', 'game_ended', 'game_reset'] as const
 type EventType = typeof EVENT_TYPES[number]
@@ -130,13 +134,8 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
   const roundCountValues: number[] = []
   const positiveRoundScores: number[] = []
   const sessionStartTimes = new Map<string, Date>()
-  const scoreEventsBySession = new Map<string, {
-    id: string
-    createdAt: Date
-    points: number | null
-    slot: number | null
-    totalScore: number | null
-  }[]>()
+  const sessionTargets = new Map<string, number>()
+  const scoreEventsBySession = new Map<string, BankedPointsScoreEvent[]>()
   const recent_games: unknown[] = []
   const sessionEventSummaries = new Map<string, {
     inferredEndedAt: Date | null
@@ -156,6 +155,9 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
     const startedAt = toDate(v.started_at) ?? toDate(v.created_at)
     const startedAtMs = startedAt?.getTime()
     if (startedAt) sessionStartTimes.set(d.id, startedAt)
+    if (typeof v.max_points === 'number' && Number.isFinite(v.max_points) && v.max_points > 0) {
+      sessionTargets.set(d.id, v.max_points)
+    }
     if (
       startedAtMs !== undefined &&
       startedAtMs >= sevenDaysAgoMs &&
@@ -200,6 +202,10 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
       const recordedTotalScore = totalScore !== null && Number.isFinite(totalScore)
         ? totalScore
         : null
+      const recordedMaxPoints = typeof payload.max_points === 'number' &&
+        Number.isFinite(payload.max_points) && payload.max_points > 0
+        ? payload.max_points
+        : null
       const slot = slotFromPayload(payload)
       if (createdAt && (recordedTotalScore !== null || (slot !== null && points !== null))) {
         const scoreEvents = scoreEventsBySession.get(v.session_id) ?? []
@@ -209,6 +215,7 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
           points,
           slot,
           totalScore: recordedTotalScore,
+          maxPoints: recordedMaxPoints,
         })
         scoreEventsBySession.set(v.session_id, scoreEvents)
       }
@@ -222,6 +229,11 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
 
     sessionEventSummaries.set(v.session_id, summary)
   })
+
+  const banked_points_by_current_score = buildBankedPointsHeatmap(
+    scoreEventsBySession,
+    sessionTargets,
+  )
 
   const completedGameDurationsMs: number[] = []
   scoreEventsBySession.forEach((scoreEvents, sessionId) => {
@@ -374,6 +386,7 @@ export const adminRoute = new Hono().use('*', requireAdmin).get('/stats', async 
     raw_events: raw_events.sort((a, b) => a.created_at.localeCompare(b.created_at)),
     event_value_bounds: EVENT_VALUE_BOUNDS,
     player_count_distribution,
+    banked_points_by_current_score,
     recent_games,
     event_data_size: allEvents.size,
     event_window_start: eventWindowStart,

@@ -29,9 +29,12 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
+  Scatter,
+  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
+  ZAxis,
 } from 'recharts'
 
 type EventType = 'game_start' | 'player_added' | 'points_added' | 'game_ended' | 'game_reset'
@@ -50,6 +53,17 @@ type RawEventValue = {
 type TimelinePoint = {
   timestamp: number
   game_start: number
+}
+
+type BankedPointsHeatmapCell = {
+  current_score: number
+  accepted_points: number
+  round_count: number
+}
+
+type BankedPointsHeatmapData = {
+  bin_size: number
+  cells: BankedPointsHeatmapCell[]
 }
 
 type Stats = {
@@ -76,6 +90,7 @@ type Stats = {
     label: string
     count: number
   }[]
+  banked_points_by_current_score: BankedPointsHeatmapData
   recent_games: {
     session_id: string
     player_count: number
@@ -189,6 +204,127 @@ const PLAYER_LINE_COLORS = [
   '#6d4c41',
   '#455a64',
 ]
+
+const HEATMAP_COLOR_STOPS = [
+  [255, 247, 236],
+  [255, 237, 160],
+  [254, 178, 76],
+  [215, 48, 31],
+] as const
+
+const heatmapColor = (count: number, maxCount: number) => {
+  const ratio = maxCount <= 1 ? 0 : Math.max(0, Math.min(1, (count - 1) / (maxCount - 1)))
+  const scaled = ratio * (HEATMAP_COLOR_STOPS.length - 1)
+  const lowerIndex = Math.floor(scaled)
+  const upperIndex = Math.min(HEATMAP_COLOR_STOPS.length - 1, lowerIndex + 1)
+  const position = scaled - lowerIndex
+  const lower = HEATMAP_COLOR_STOPS[lowerIndex]
+  const upper = HEATMAP_COLOR_STOPS[upperIndex]
+  const color = lower.map((value, index) =>
+    Math.round(value + (upper[index] - value) * position),
+  )
+  return `rgb(${color.join(', ')})`
+}
+
+const formatPointBin = (value: number, binSize: number) =>
+  `${value.toLocaleString()}–${(value + binSize - 1).toLocaleString()}`
+
+type HeatmapShapeProps = {
+  fill?: string
+  payload?: BankedPointsHeatmapCell & { bin_size: number; fill: string }
+  xAxis?: { scale: (value: number) => number }
+  yAxis?: { scale: (value: number) => number }
+}
+
+const HeatmapCellShape = (rawProps: unknown) => {
+  const { fill, payload, xAxis, yAxis } = rawProps as HeatmapShapeProps
+  if (!payload || !xAxis || !yAxis) return <g />
+
+  const x1 = xAxis.scale(payload.current_score)
+  const x2 = xAxis.scale(payload.current_score + payload.bin_size)
+  const y1 = yAxis.scale(payload.accepted_points)
+  const y2 = yAxis.scale(payload.accepted_points + payload.bin_size)
+  const x = Math.min(x1, x2)
+  const y = Math.min(y1, y2)
+  const width = Math.max(1, Math.abs(x2 - x1))
+  const height = Math.max(1, Math.abs(y2 - y1))
+
+  return (
+    <rect
+      fill={fill ?? payload.fill}
+      height={height}
+      stroke="rgba(255, 255, 255, 0.72)"
+      strokeWidth={0.5}
+      width={width}
+      x={x}
+      y={y}
+    >
+      <title>
+        {`Current score ${formatPointBin(payload.current_score, payload.bin_size)}; accepted points ${formatPointBin(payload.accepted_points, payload.bin_size)}; ${payload.round_count.toLocaleString()} rounds`}
+      </title>
+    </rect>
+  )
+}
+
+const HeatmapTooltip = ({
+  active,
+  binSize,
+  payload,
+}: {
+  active?: boolean
+  binSize: number
+  payload?: { payload?: BankedPointsHeatmapCell }[]
+}) => {
+  const cell = payload?.[0]?.payload
+  if (!active || !cell) return null
+
+  return (
+    <Paper sx={{ p: 1.25 }} elevation={4}>
+      <Typography variant="body2">
+        Current score: {formatPointBin(cell.current_score, binSize)}
+      </Typography>
+      <Typography variant="body2">
+        Accepted points: {formatPointBin(cell.accepted_points, binSize)}
+      </Typography>
+      <Typography variant="body2" fontWeight={600}>
+        Rounds: {cell.round_count.toLocaleString()}
+      </Typography>
+    </Paper>
+  )
+}
+
+const HeatmapLegend = ({ maxCount }: { maxCount: number }) => (
+  <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', justifyContent: 'center' }}>
+    <Typography
+      variant="caption"
+      color="text.secondary"
+      sx={{ display: { xs: 'none', sm: 'block' }, whiteSpace: 'nowrap' }}
+    >
+      Fewer rounds
+    </Typography>
+    <Box sx={{ width: 220, maxWidth: { xs: '80%', sm: '45vw' } }}>
+      <Box
+        sx={{
+          background: 'linear-gradient(90deg, #fff7ec 0%, #ffeda0 33%, #feb24c 67%, #d7301f 100%)',
+          border: 1,
+          borderColor: 'divider',
+          height: 12,
+        }}
+      />
+      <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
+        <Typography variant="caption">1</Typography>
+        <Typography variant="caption">{maxCount.toLocaleString()}</Typography>
+      </Stack>
+    </Box>
+    <Typography
+      variant="caption"
+      color="text.secondary"
+      sx={{ display: { xs: 'none', sm: 'block' }, whiteSpace: 'nowrap' }}
+    >
+      More rounds
+    </Typography>
+  </Stack>
+)
 
 const authHeaders = (credential?: string): HeadersInit =>
   credential ? { Authorization: `Bearer ${credential}` } : {}
@@ -388,6 +524,32 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
     return [...counts.entries()]
       .sort(([a], [b]) => a - b)
       .map(([score, count]) => ({ score, count }))
+  }, [stats])
+
+  const bankedPointsHeatmap = useMemo(() => {
+    const source = stats?.banked_points_by_current_score
+    const cells = source?.cells ?? []
+    const binSize = source?.bin_size ?? 50
+    const maxCount = cells.reduce((max, cell) => Math.max(max, cell.round_count), 0)
+    const maxCurrentScore = cells.reduce((max, cell) => Math.max(max, cell.current_score), 0)
+    const maxAcceptedPoints = cells.reduce((max, cell) => Math.max(max, cell.accepted_points), 0)
+    const xBinCount = Math.floor(maxCurrentScore / binSize) + 1
+    const yBinCount = Math.floor(maxAcceptedPoints / binSize) + 1
+
+    return {
+      binSize,
+      cells: cells.map((cell) => ({
+        ...cell,
+        bin_size: binSize,
+        fill: heatmapColor(cell.round_count, maxCount),
+      })),
+      chartHeight: Math.max(360, yBinCount * 7 + 105),
+      chartMinWidth: Math.max(720, xBinCount * 7 + 120),
+      maxCount,
+      totalRounds: cells.reduce((sum, cell) => sum + cell.round_count, 0),
+      xDomainMax: maxCurrentScore + binSize,
+      yDomainMax: maxAcceptedPoints + binSize,
+    }
   }, [stats])
 
   const gameStartCount = stats?.event_type_counts
@@ -642,6 +804,66 @@ const Admin = ({ googleClientId, isAuthBypassed }: AdminProps) => {
               )}
             </ChartPanel>
           </Box>
+
+          <ChartPanel
+            title="Accepted Points by Current Score"
+            subtitle={`${bankedPointsHeatmap.totalRounds.toLocaleString()} banked rounds in ${bankedPointsHeatmap.binSize.toLocaleString()}-point bins. Darker cells occurred more often.`}
+            height={bankedPointsHeatmap.chartHeight + 54}
+          >
+            {bankedPointsHeatmap.cells.length > 0 ? (
+              <Stack spacing={1.25} sx={{ height: '100%' }}>
+                <Box sx={{ flex: 1, minHeight: 0, overflowX: 'auto', overflowY: 'hidden' }}>
+                  <Box sx={{ height: '100%', minWidth: bankedPointsHeatmap.chartMinWidth }}>
+                    <ResponsiveContainer>
+                      <ScatterChart margin={{ top: 16, right: 24, bottom: 40, left: 32 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis
+                          allowDataOverflow
+                          dataKey="current_score"
+                          domain={[0, bankedPointsHeatmap.xDomainMax]}
+                          name="Current score"
+                          tickFormatter={(value) => Number(value).toLocaleString()}
+                          type="number"
+                          label={{
+                            value: 'Current score before banking',
+                            position: 'insideBottom',
+                            offset: -24,
+                          }}
+                        />
+                        <YAxis
+                          allowDataOverflow
+                          dataKey="accepted_points"
+                          domain={[0, bankedPointsHeatmap.yDomainMax]}
+                          name="Accepted points"
+                          tickFormatter={(value) => Number(value).toLocaleString()}
+                          type="number"
+                          label={{
+                            value: 'Accepted points',
+                            angle: -90,
+                            position: 'insideLeft',
+                            offset: -20,
+                          }}
+                        />
+                        <ZAxis dataKey="round_count" name="Rounds" range={[64, 64]} />
+                        <Tooltip
+                          content={<HeatmapTooltip binSize={bankedPointsHeatmap.binSize} />}
+                          cursor={false}
+                        />
+                        <Scatter
+                          data={bankedPointsHeatmap.cells}
+                          isAnimationActive={false}
+                          shape={HeatmapCellShape}
+                        />
+                      </ScatterChart>
+                    </ResponsiveContainer>
+                  </Box>
+                </Box>
+                <HeatmapLegend maxCount={bankedPointsHeatmap.maxCount} />
+              </Stack>
+            ) : (
+              <EmptyPanel>No positive banked rounds with current score data yet.</EmptyPanel>
+            )}
+          </ChartPanel>
 
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6">Recent Games</Typography>
